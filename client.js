@@ -436,6 +436,7 @@ window.__ModuleLoader__.load({
 
     let miniDanmuSource = null
     let miniDanmuAbort = null
+    let miniDmPoll = null
     let miniDanmuOn = localStorage.getItem('bili-mini-danmaku') !== '0'
     let miniDmWatch = null
     let miniDmCfg = (() => { try { const v = JSON.parse(localStorage.getItem('bili-mini-dm-cfg') || '{}'); return { speed: Number(v.speed) || 1, area: Number(v.area) || 70, opacity: v.opacity === undefined ? 1 : Number(v.opacity), size: Number(v.size) || 16 } } catch { return { speed: 1, area: 70, opacity: 1, size: 16 } } })()
@@ -452,6 +453,8 @@ window.__ModuleLoader__.load({
     function miniStopDanmu() {
       try { if (miniDanmuSource) miniDanmuSource.close() } catch {}
       try { if (miniDanmuAbort) miniDanmuAbort.abort() } catch {}
+      try { if (miniDmPoll) clearInterval(miniDmPoll) } catch {}
+      miniDmPoll = null
       miniDanmuSource = null
       miniDanmuAbort = null
       const layer = document.getElementById('bili-mini-danmu')
@@ -493,19 +496,20 @@ window.__ModuleLoader__.load({
       if (!miniDanmuOn || !roomId) return
       miniEnsureStyle()
       if (!document.getElementById('bili-mini-danmu')) return
-      try { miniDanmuSource = new EventSource('/bilibili-multiview/api/danmu/events?room=' + encodeURIComponent(roomId)) } catch { miniDanmuSource = null; return }
-      const reconnect = () => {
-        miniDanmuSource = null
-        setTimeout(() => { if (miniDanmuOn && miniActive && !miniDanmuSource) miniStartDanmu(miniRoomId) }, 2000)
-      }
-      miniDanmuSource.onmessage = (event) => {
+      let since = 0
+      const tick = async () => {
         try {
-          const payload = JSON.parse(event.data)
-          if (payload && typeof payload.text === 'string') miniPushDanmu(payload.text, payload.kind)
+          const response = await fetch('/bilibili-multiview/api/danmu/recent?room=' + encodeURIComponent(roomId) + '&since=' + since, { cache: 'no-store' })
+          const data = await response.json()
+          if (!data || !data.ok) return
+          since = Number(data.last) || since
+          for (const item of data.messages || []) {
+            if (item && typeof item.text === 'string') miniPushDanmu(item.text, item.kind)
+          }
         } catch {}
       }
-      miniDanmuSource.onclose = reconnect
-      miniDanmuSource.onerror = reconnect
+      tick()
+      miniDmPoll = setInterval(tick, 1000)
     }
 
     function miniFit(box) {
@@ -546,7 +550,7 @@ window.__ModuleLoader__.load({
       if (miniDmWatch) clearInterval(miniDmWatch)
       miniDmWatch = setInterval(() => {
         if (!miniActive || !miniDanmuOn) return
-        if (!miniDanmuAbort) miniStartDanmu(miniRoomId)
+        if (!miniDmPoll) miniStartDanmu(miniRoomId)
       }, 4000)
       video.addEventListener('loadedmetadata', () => miniFit(box))
     }

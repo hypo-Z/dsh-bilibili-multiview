@@ -355,10 +355,26 @@ window.__ModuleLoader__.load({
     function resumePageVideoNow() {
       const video = pageVideoEl
       if (!video) return
-      try { video.muted = false; video.volume = 1 } catch {}
-      if (video.paused) {
-        try { const started = video.play(); if (started && started.catch) started.catch(() => {}) } catch {}
-      }
+      const unmute = () => { try { video.muted = false; video.volume = 1 } catch {} }
+      unmute()
+      // 第一次尝试：带声音播放（用户点击手势内）
+      try {
+        const started = video.paused ? video.play() : Promise.resolve()
+        if (started && started.catch) {
+          started.catch(() => {
+            // 被浏览器拦截时降级：先静音起播（一定允许），再自动尝试取消静音
+            try { video.muted = true } catch {}
+            try { const p2 = video.paused ? video.play() : Promise.resolve(); if (p2 && p2.catch) p2.catch(() => {}) } catch {}
+            setTimeout(() => {
+              try { video.muted = false; video.volume = 1 } catch {}
+              if (video.paused) { try { video.play().catch(() => {}) } catch {} }
+            }, 150)
+            // 后续任意一次页面点击自动恢复声音（不需要专门按钮）
+            const once = () => { unmute(); try { if (video.paused) video.play().catch(() => {}) } catch {} }
+            document.addEventListener('pointerdown', once, { once: true })
+          })
+        }
+      } catch {}
     }
 
     function miniEnsure() {

@@ -539,7 +539,7 @@ window.__ModuleLoader__.load({
       }
     }
 
-    async function miniPlay(urls, format, title) {
+    async function miniPlay(roomId, urls, format, title) {
       const box = miniEnsure()
       box.querySelector('#bili-mini-title').textContent = title || '直播'
       const video = box.querySelector('#bili-mini-video')

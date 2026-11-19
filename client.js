@@ -114,13 +114,12 @@ window.__ModuleLoader__.load({
       return box
     }
 
-    function biliMiniShow(video, roomId, title, player) {
-      const box = biliMiniEnsure()
-      const stage = box.querySelector('#bili-mini-stage')
-      stage.appendChild(video)
+    function biliMiniStyleVideo(video) {
+      const box = document.getElementById('bili-live-mini')
+      const stage = box && box.querySelector('#bili-mini-stage')
+      if (!stage) return
       video.style.width = '100%'
       video.style.height = '100%'
-      // 只显示视频画面：铺满并裁掉多余黑边；舞台比例跟随视频实际比例
       video.style.objectFit = 'cover'
       const applyAspect = () => {
         if (video.videoWidth && video.videoHeight) {
@@ -129,8 +128,18 @@ window.__ModuleLoader__.load({
         }
       }
       applyAspect()
-      video.addEventListener('loadedmetadata', applyAspect)
-      video.addEventListener('resize', applyAspect)
+      if (!video.dataset.miniAspect) {
+        video.dataset.miniAspect = '1'
+        video.addEventListener('loadedmetadata', applyAspect)
+        video.addEventListener('resize', applyAspect)
+      }
+    }
+
+    function biliMiniShow(video, roomId, title, player) {
+      const box = biliMiniEnsure()
+      const stage = box.querySelector('#bili-mini-stage')
+      stage.appendChild(video)
+      biliMiniStyleVideo(video)
       biliLiveSession.video = video
       biliLiveSession.player = player || null
       biliLiveSession.roomId = roomId
@@ -1148,6 +1157,7 @@ window.__ModuleLoader__.load({
             if (document.getElementById('bili-live-mini')) {
               // 迷你窗口存在：视频移入迷你窗并保留 HLS 播放器，切页不中断
               try { document.querySelector('#bili-mini-stage').appendChild(video) } catch {}
+              biliMiniStyleVideo(video)
               biliLiveSession.video = video
               biliLiveSession.player = hls
               try { video.play().catch(() => {}) } catch {}
@@ -1229,6 +1239,7 @@ window.__ModuleLoader__.load({
           if (document.getElementById('bili-live-mini')) {
             // 迷你窗口存在：视频移入迷你窗并保留播放器，切页不中断
             try { document.querySelector('#bili-mini-stage').appendChild(video) } catch {}
+            biliMiniStyleVideo(video)
             biliLiveSession.video = video
             biliLiveSession.player = player
             playerRef.current = null

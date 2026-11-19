@@ -1383,7 +1383,7 @@ window.__ModuleLoader__.load({
         if (!play || !Array.isArray(play.urls) || play.urls.length === 0) { alert('请先播放直播'); return }
         miniActive = true
         try { if (videoRef.current) { videoRef.current.muted = true; videoRef.current.pause() } } catch {}
-        miniPlay(play.urls, play.format || 'flv', room.title || room.uname || '')
+        miniPlay(room.id, play.urls, play.format || 'flv', room.title || room.uname || '')
       }
 
       const toggleFullscreen = () => {

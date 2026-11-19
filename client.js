@@ -1425,7 +1425,18 @@ window.__ModuleLoader__.load({
         if (!muted && video.paused) {
           const started = video.play()
           if (started && typeof started.catch === 'function') {
-            started.catch(() => setNeedsTap(true))
+            started.catch(() => {
+              // 浏览器拦截带声音自动播放：先静音起播保证有画面，再在页面任意点击时恢复声音
+              try { video.muted = true; const p2 = video.play(); if (p2 && p2.catch) p2.catch(() => {}) } catch {}
+              setNeedsTap(false)
+              if (!document.__biliUnmuteBound) {
+                document.__biliUnmuteBound = true
+                document.addEventListener('pointerdown', () => {
+                  try { video.muted = false; video.volume = 1 } catch {}
+                  try { const p3 = video.paused ? video.play() : Promise.resolve(); if (p3 && p3.catch) p3.catch(() => {}) } catch {}
+                }, { once: true })
+              }
+            })
           }
         }
       }, [volume, audioUnlocked, soloId, room.id, phase, focused])

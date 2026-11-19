@@ -21,6 +21,7 @@ window.__ModuleLoader__.load({
 
     // ── 常驻迷你播放器（模块级，切页不销毁） ───────────────────────
     const biliLiveSession = { video: null, player: null, roomId: null, title: '' }
+    let biliPageMounted = false
 
     function biliMiniEnsure() {
       let box = document.getElementById('bili-live-mini')
@@ -63,6 +64,7 @@ window.__ModuleLoader__.load({
         box.remove()
       })
       box.querySelector('#bili-mini-expand').addEventListener('click', () => {
+        if (!biliPageMounted) { alert('请先切回「bilibili 直播」页面，再点「回页面」'); return }
         window.dispatchEvent(new CustomEvent('bili-live-expand-mini'))
       })
       return box
@@ -1223,6 +1225,11 @@ window.__ModuleLoader__.load({
         }
         window.addEventListener('bili-live-expand-mini', onExpand)
         return () => window.removeEventListener('bili-live-expand-mini', onExpand)
+      }, [])
+
+      useEffect(() => {
+        biliPageMounted = true
+        return () => { biliPageMounted = false }
       }, [])
 
       const toggleFullscreen = () => {

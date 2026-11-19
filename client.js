@@ -435,6 +435,7 @@ window.__ModuleLoader__.load({
     }
 
     let miniDanmuSource = null
+    let miniDanmuAbort = null
     let miniDanmuOn = localStorage.getItem('bili-mini-danmaku') !== '0'
     let miniDmWatch = null
     let miniDmCfg = (() => { try { const v = JSON.parse(localStorage.getItem('bili-mini-dm-cfg') || '{}'); return { speed: Number(v.speed) || 1, area: Number(v.area) || 70, opacity: v.opacity === undefined ? 1 : Number(v.opacity), size: Number(v.size) || 16 } } catch { return { speed: 1, area: 70, opacity: 1, size: 16 } } })()
@@ -450,7 +451,9 @@ window.__ModuleLoader__.load({
 
     function miniStopDanmu() {
       try { if (miniDanmuSource) miniDanmuSource.close() } catch {}
+      try { if (miniDanmuAbort) miniDanmuAbort.abort() } catch {}
       miniDanmuSource = null
+      miniDanmuAbort = null
       const layer = document.getElementById('bili-mini-danmu')
       if (layer) layer.textContent = ''
     }
@@ -491,24 +494,44 @@ window.__ModuleLoader__.load({
       miniEnsureStyle()
       const layer = document.getElementById('bili-mini-danmu')
       if (!layer) return
-      try {
-        miniDanmuSource = new EventSource('/bilibili-multiview/api/danmu/events?room=' + encodeURIComponent(roomId))
-      } catch { return }
-      miniDanmuSource.onmessage = (event) => {
-        let payload
-        try { payload = JSON.parse(event.data) } catch { return }
-        if (!payload || typeof payload.text !== 'string') return
-        miniPushDanmu(payload.text, payload.kind)
+      const controller = new AbortController()
+      miniDanmuAbort = controller
+      const pump = async () => {
+        try {
+          const response = await fetch('/bilibili-multiview/api/danmu/events?room=' + encodeURIComponent(roomId), {
+            signal: controller.signal,
+            headers: { accept: 'text/event-stream' },
+            cache: 'no-store',
+          })
+          if (!response.ok || !response.body) throw new Error('sse ' + response.status)
+          const reader = response.body.getReader()
+          const decoder = new TextDecoder()
+          let buffer = ''
+          for (;;) {
+            const { done, value } = await reader.read()
+            if (done) break
+            buffer += decoder.decode(value, { stream: true })
+            let index = buffer.indexOf('\n\n')
+            while (index >= 0) {
+              const chunk = buffer.slice(0, index)
+              buffer = buffer.slice(index + 2)
+              for (const line of chunk.split('\n')) {
+                if (!line.startsWith('data:')) continue
+                try {
+                  const payload = JSON.parse(line.slice(5).trim())
+                  if (payload && typeof payload.text === 'string') miniPushDanmu(payload.text, payload.kind)
+                } catch {}
+              }
+              index = buffer.indexOf('\n\n')
+            }
+          }
+        } catch (error) {
+          if (!controller.signal.aborted) {
+            setTimeout(() => { if (miniDanmuOn && miniActive) miniStartDanmu(miniRoomId) }, 3000)
+          }
+        }
       }
-      miniDanmuSource.onclose = () => {
-        miniDanmuSource = null
-        if (miniDanmuOn && miniActive) setTimeout(() => { if (miniDanmuOn && miniActive && !miniDanmuSource) miniStartDanmu(miniRoomId) }, 2000)
-      }
-      miniDanmuSource.onerror = () => {
-        try { miniDanmuSource.close() } catch {}
-        miniDanmuSource = null
-        if (miniDanmuOn && miniActive) setTimeout(() => { if (miniDanmuOn && miniActive && !miniDanmuSource) miniStartDanmu(miniRoomId) }, 3000)
-      }
+      pump()
     }
 
     function miniFit(box) {

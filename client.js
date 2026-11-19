@@ -18,6 +18,69 @@ window.__ModuleLoader__.load({
     const STORE_KEY = 'dsh.bilibili-multiview.v1'
     const LEGACY_STORE_KEY = 'dsh.bilibili-live.v1'
     const GAP = 18
+
+    // ── 常驻迷你播放器（模块级，切页不销毁） ───────────────────────
+    const biliLiveSession = { video: null, player: null, roomId: null, title: '' }
+
+    function biliMiniEnsure() {
+      let box = document.getElementById('bili-live-mini')
+      if (box) return box
+      box = document.createElement('div')
+      box.id = 'bili-live-mini'
+      box.style.cssText = 'position:fixed;right:16px;top:80px;width:360px;z-index:2147483200;background:#111;border:1px solid rgba(255,255,255,.18);border-radius:10px;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,.5);color:#eee;font:12px/1.4 -apple-system,BlinkMacSystemFont,sans-serif'
+      box.innerHTML = '<div id="bili-mini-bar" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:#1b1b1f;cursor:move"><b id="bili-mini-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">直播</b><button id="bili-mini-play" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">暂停</button><button id="bili-mini-close" style="border:0;background:transparent;color:#fff;cursor:pointer">✕</button></div><div id="bili-mini-stage" style="width:100%;aspect-ratio:16/9;background:#000"></div><div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#17171b"><input id="bili-mini-vol" type="range" min="0" max="100" value="100" style="flex:1"><button id="bili-mini-expand" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">回页面</button></div>'
+      document.body.appendChild(box)
+      const bar = box.querySelector('#bili-mini-bar')
+      let sx = 0, sy = 0, ox = 0, oy = 0, dragging = false
+      bar.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('button')) return
+        dragging = true; sx = e.clientX; sy = e.clientY
+        const r = box.getBoundingClientRect(); ox = r.left; oy = r.top
+        bar.setPointerCapture(e.pointerId)
+      })
+      bar.addEventListener('pointermove', (e) => {
+        if (!dragging) return
+        box.style.left = (ox + e.clientX - sx) + 'px'
+        box.style.top = (oy + e.clientY - sy) + 'px'
+        box.style.right = 'auto'
+      })
+      bar.addEventListener('pointerup', () => { dragging = false })
+      box.querySelector('#bili-mini-play').addEventListener('click', () => {
+        const v = biliLiveSession.video
+        if (!v) return
+        if (v.paused) v.play().catch(() => {})
+        else v.pause()
+        box.querySelector('#bili-mini-play').textContent = v.paused ? '播放' : '暂停'
+      })
+      box.querySelector('#bili-mini-vol').addEventListener('input', (e) => {
+        const v = biliLiveSession.video
+        if (v) v.volume = Number(e.target.value) / 100
+      })
+      box.querySelector('#bili-mini-close').addEventListener('click', () => {
+        try { biliLiveSession.player?.destroy() } catch {}
+        try { biliLiveSession.video?.remove() } catch {}
+        biliLiveSession.video = null; biliLiveSession.player = null
+        box.remove()
+      })
+      box.querySelector('#bili-mini-expand').addEventListener('click', () => {
+        window.dispatchEvent(new CustomEvent('bili-live-expand-mini'))
+      })
+      return box
+    }
+
+    function biliMiniShow(video, roomId, title, player) {
+      const box = biliMiniEnsure()
+      const stage = box.querySelector('#bili-mini-stage')
+      stage.appendChild(video)
+      video.style.width = '100%'; video.style.height = '100%'; video.style.objectFit = 'contain'
+      biliLiveSession.video = video
+      biliLiveSession.player = player || null
+      biliLiveSession.roomId = roomId
+      biliLiveSession.title = title || ''
+      box.querySelector('#bili-mini-title').textContent = title || ('房间 ' + roomId)
+      box.querySelector('#bili-mini-play').textContent = video.paused ? '播放' : '暂停'
+    }
+
     const STACK_GAP = 10
     const DUCK_FACTOR = 0.2
     const VOLUME_STEP = 5
@@ -1058,9 +1121,9 @@ window.__ModuleLoader__.load({
             video.removeEventListener('enterpictureinpicture', onEnterPip)
             video.removeEventListener('leavepictureinpicture', onLeavePip)
           } catch {}
-          if (document.pictureInPictureElement === video) {
-            // 小窗模式：视频已移出 React 子树，保留播放器，切页不中断
-            window.__biliLivePip = { player, video }
+          if (biliLiveSession.video === video && video.parentElement && video.parentElement.id === 'bili-mini-stage') {
+            // 迷你窗口持有视频：保留播放器，切页不中断
+            biliLiveSession.player = player
             playerRef.current = null
             return
           }
@@ -1118,15 +1181,14 @@ window.__ModuleLoader__.load({
       }, [])
 
       const togglePip = () => {
-        const video = videoRef.current
-        if (!video || typeof video.requestPictureInPicture !== 'function') {
-          alert('当前环境不支持画中画')
+        const existing = document.getElementById('bili-live-mini')
+        if (existing) {
+          existing.querySelector('#bili-mini-expand').click()
           return
         }
-        try {
-          if (document.pictureInPictureElement) document.exitPictureInPicture()
-          else video.requestPictureInPicture()
-        } catch {}
+        const video = videoRef.current
+        if (!video) return
+        biliMiniShow(video, room.id, room.title || room.uname || '', playerRef.current)
       }
 
       const toggleFullscreen = () => {

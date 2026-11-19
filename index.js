@@ -919,15 +919,20 @@ async function route(request, response) {
     if (!target) throw new BiliError('缺少 HLS 地址')
     const r = await fetch(target, { headers: { 'User-Agent': USER_AGENT, referer: 'https://live.bilibili.com/' } })
     const text = await r.text()
+    const proxy = (u) => {
+      const abs = new URL(u, target).toString()
+      const kind = /\.m3u8(\?|$)/i.test(abs) ? 'hls' : 'hls-seg'
+      return `${ROUTE_PREFIX}/api/${kind}?u=` + encodeURIComponent(abs)
+    }
     const out = text.split('\n').map((line) => {
       if (line.includes('URI="')) {
         return line.replace(/URI="([^"]+)"/g, (m, u) => {
-          try { return 'URI="' + `${ROUTE_PREFIX}/api/hls-seg?u=` + encodeURIComponent(new URL(u, target).toString()) + '"' } catch { return m }
+          try { return 'URI="' + proxy(u) + '"' } catch { return m }
         })
       }
       const t = line.trim()
       if (!t || t.startsWith('#')) return line
-      try { return `${ROUTE_PREFIX}/api/hls-seg?u=` + encodeURIComponent(new URL(t, target).toString()) } catch { return line }
+      try { return proxy(t) } catch { return line }
     }).join('\n')
     response.writeHead(200, { 'content-type': 'application/vnd.apple.mpegurl; charset=utf-8', 'cache-control': 'no-store', 'access-control-allow-origin': '*' })
     response.end(out)

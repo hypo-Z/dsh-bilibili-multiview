@@ -326,7 +326,7 @@ window.__ModuleLoader__.load({
       box = document.createElement('div')
       box.id = 'bili-live-mini'
       box.style.cssText = 'position:fixed;right:16px;top:80px;width:' + Math.round(360 * miniSize) + 'px;z-index:2147483200;background:#000;border:1px solid rgba(255,255,255,.18);border-radius:10px;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,.5);color:#eee;font:12px/1.4 -apple-system,BlinkMacSystemFont,sans-serif'
-      box.innerHTML = '<div id="bili-mini-bar" style="position:absolute;left:0;right:0;top:0;z-index:3;display:flex;align-items:center;gap:6px;padding:6px 8px;background:linear-gradient(180deg,rgba(8,8,10,.88),rgba(8,8,10,0));cursor:move;transition:opacity .25s"><b id="bili-mini-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 2px #000">直播</b><button id="bili-mini-dm" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">弹幕 开</button><button id="bili-mini-size" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">尺寸 ' + miniSize + 'x</button><button id="bili-mini-back" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">回页面</button><button id="bili-mini-play" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">暂停</button><button id="bili-mini-close" style="border:0;background:transparent;color:#fff;cursor:pointer">✕</button></div><div id="bili-mini-stage" style="position:relative;width:100%;aspect-ratio:16/9;background:#000;overflow:hidden"><video id="bili-mini-video" controls playsinline style="width:100%;height:100%;object-fit:cover"></video><div id="bili-mini-danmu" style="position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:2"></div></div>'
+      box.innerHTML = '<div id="bili-mini-bar" style="position:absolute;left:0;right:0;top:0;z-index:3;display:flex;align-items:center;gap:6px;padding:6px 8px;background:linear-gradient(180deg,rgba(8,8,10,.88),rgba(8,8,10,0));cursor:move;transition:opacity .25s"><b id="bili-mini-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 2px #000">直播</b><button id="bili-mini-dm" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">弹幕 开</button><button id="bili-mini-dmset" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">设置</button><button id="bili-mini-size" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">尺寸 ' + miniSize + 'x</button><button id="bili-mini-back" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">回页面</button><button id="bili-mini-play" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">暂停</button><button id="bili-mini-close" style="border:0;background:transparent;color:#fff;cursor:pointer">✕</button></div><div id="bili-mini-stage" style="position:relative;width:100%;aspect-ratio:16/9;background:#000;overflow:hidden"><video id="bili-mini-video" controls playsinline style="width:100%;height:100%;object-fit:cover"></video><div id="bili-mini-danmu" style="position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:2"></div></div>'
       document.body.appendChild(box)
       const bar = box.querySelector('#bili-mini-bar')
       const foot = box.querySelector('#bili-mini-foot')
@@ -394,6 +394,8 @@ window.__ModuleLoader__.load({
 
     let miniDanmuSource = null
     let miniDanmuOn = localStorage.getItem('bili-mini-danmaku') !== '0'
+    let miniDmCfg = (() => { try { const v = JSON.parse(localStorage.getItem('bili-mini-dm-cfg') || '{}'); return { speed: Number(v.speed) || 1, area: Number(v.area) || 70, opacity: v.opacity === undefined ? 1 : Number(v.opacity), size: Number(v.size) || 16 } } catch { return { speed: 1, area: 70, opacity: 1, size: 16 } } })()
+    function miniSaveDmCfg() { try { localStorage.setItem('bili-mini-dm-cfg', JSON.stringify(miniDmCfg)) } catch {} }
 
     function miniEnsureStyle() {
       if (document.getElementById('bili-mini-danmu-style')) return
@@ -417,11 +419,17 @@ window.__ModuleLoader__.load({
       if (!layer) return
       const text = String(rawText || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 120)
       if (!text) return
+      const cfg = miniDmCfg
+      const area = Math.max(20, Math.min(100, Number(cfg.area) || 70))
+      const speed = Math.max(0.5, Math.min(2, Number(cfg.speed) || 1))
+      const opacity = Math.max(0.2, Math.min(1, cfg.opacity === undefined ? 1 : Number(cfg.opacity)))
+      const size = Math.max(12, Math.min(28, Number(cfg.size) || 16))
+      const duration = 9 / speed
       const el = document.createElement('div')
       el.textContent = text
-      el.style.cssText = 'position:absolute;left:100%;top:' + (3 + Math.random() * 78) + '%;white-space:nowrap;font-size:' + (13 + Math.random() * 3).toFixed(0) + 'px;color:' + (kind === 'gift' ? '#ffd469' : kind === 'super' ? '#7fd1ff' : '#fff') + ';text-shadow:0 1px 3px rgba(0,0,0,.9);animation:bili-dm-move ' + (7 + Math.random() * 3).toFixed(2) + 's linear forwards'
+      el.style.cssText = 'position:absolute;left:100%;top:' + (2 + Math.random() * (area - 4)) + '%;white-space:nowrap;font-size:' + size + 'px;opacity:' + opacity + ';color:' + (kind === 'gift' ? '#ffd469' : kind === 'super' ? '#7fd1ff' : '#fff') + ';text-shadow:0 1px 3px rgba(0,0,0,.9);animation:bili-dm-move ' + duration.toFixed(2) + 's linear forwards'
       layer.appendChild(el)
-      setTimeout(() => el.remove(), 11000)
+      setTimeout(() => el.remove(), (duration + 2) * 1000)
       if (layer.childElementCount > 60) layer.firstElementChild?.remove()
     }
 
@@ -448,6 +456,11 @@ window.__ModuleLoader__.load({
         try { payload = JSON.parse(event.data) } catch { return }
         if (!payload || typeof payload.text !== 'string') return
         miniPushDanmu(payload.text, payload.kind)
+      }
+      miniDanmuSource.onerror = () => {
+        try { miniDanmuSource.close() } catch {}
+        miniDanmuSource = null
+        if (miniDanmuOn && miniActive) setTimeout(() => { if (miniDanmuOn && miniActive && !miniDanmuSource) miniStartDanmu(miniRoomId) }, 3000)
       }
     }
 

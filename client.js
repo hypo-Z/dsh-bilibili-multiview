@@ -1737,6 +1737,12 @@ window.__ModuleLoader__.load({
       const [danmakuOn, setDanmakuOn] = useState(stored.danmaku)
       const [soloId, setSoloId] = useState(null)
       const [audioUnlocked, setAudioUnlocked] = useState(false)
+      // 第一次点页面任意位置（选房间/刷新等）就解锁声音，避免默认静音起播
+      useEffect(() => {
+        const unlock = () => setAudioUnlocked(true)
+        document.addEventListener('pointerdown', unlock, { once: true })
+        return () => document.removeEventListener('pointerdown', unlock)
+      }, [])
       const [session, setSession] = useState(null)
       const [sessionError, setSessionError] = useState('')
       const [cookieOpen, setCookieOpen] = useState(false)

@@ -1071,6 +1071,14 @@ window.__ModuleLoader__.load({
         const videoHost = () => video.parentElement
         video.addEventListener('enterpictureinpicture', onEnterPip)
         video.addEventListener('leavepictureinpicture', onLeavePip)
+        // 换了房间或没有迷你窗：先彻底销毁旧会话，保证同一时间只有一路声音
+        if (biliLiveSession.video && (!document.getElementById('bili-live-mini') || String(biliLiveSession.roomId) !== String(room.id))) {
+          try { document.getElementById('bili-live-mini')?.remove() } catch {}
+          try { biliLiveSession.player?.destroy() } catch {}
+          try { biliLiveSession.video?.remove() } catch {}
+          biliLiveSession.video = null
+          biliLiveSession.player = null
+        }
         if (biliLiveSession.video && String(biliLiveSession.roomId) === String(room.id)) {
           // 已有播放中的会话：直接把视频接回页面，不再新建播放器（避免双流/回声）
           const sessionVideo = biliLiveSession.video
@@ -1080,6 +1088,7 @@ window.__ModuleLoader__.load({
           }
           videoRef.current = sessionVideo
           playerRef.current = biliLiveSession.player
+          try { document.getElementById('bili-live-mini')?.remove() } catch {}
           sessionVideo.style.width = '100%'
           sessionVideo.style.height = 'auto'
           sessionVideo.style.objectFit = 'contain'

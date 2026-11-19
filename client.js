@@ -920,6 +920,14 @@ window.__ModuleLoader__.load({
       }, [room.id, room.liveStatus, quality, attempt])
 
       useEffect(() => {
+        const video = videoRef.current
+        if (!video) return undefined
+        const onPlay = () => { try { window.dispatchEvent(new Event('bili-live-video-play')) } catch {} }
+        video.addEventListener('play', onPlay)
+        return () => video.removeEventListener('play', onPlay)
+      }, [])
+
+      useEffect(() => {
         if (!play || !sources.length) return undefined
         const video = videoRef.current
         if (!video) return undefined

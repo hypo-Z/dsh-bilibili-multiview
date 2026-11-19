@@ -1110,6 +1110,7 @@ window.__ModuleLoader__.load({
       focused,
       volume,
       audioUnlocked,
+      onUnlock,
       soloId,
       danmakuOn,
       quality,
@@ -1156,7 +1157,7 @@ window.__ModuleLoader__.load({
         const onClosed = () => {
           miniActive = false
           if (!pageMounted) return
-          setAudioUnlocked(true)
+          try { if (typeof onUnlock === 'function') onUnlock() } catch {}
           setNeedsTap(false)
           const video = videoRef.current
           if (video && playerRef.current) {
@@ -3047,6 +3048,7 @@ window.__ModuleLoader__.load({
                           ? Number(volumes[layout.room.id])
                           : 60,
                         audioUnlocked,
+                        onUnlock: () => setAudioUnlocked(true),
                         soloId,
                         danmakuOn,
                         quality: Number(quality[layout.room.id]) || DEFAULT_QN,

@@ -572,7 +572,7 @@ window.__ModuleLoader__.load({
       if (miniDmWatch) clearInterval(miniDmWatch)
       miniDmWatch = setInterval(() => {
         if (!miniActive || !miniDanmuOn) return
-        if (!miniDanmuSource || miniDanmuSource.readyState === 2) miniStartDanmu(miniRoomId)
+        if (!miniDanmuAbort) miniStartDanmu(miniRoomId)
       }, 4000)
       video.addEventListener('loadedmetadata', () => miniFit(box))
     }

@@ -385,7 +385,7 @@ window.__ModuleLoader__.load({
       bar.addEventListener('pointermove', (e) => { if (!drag) return; box.style.left = (ox + e.clientX - sx) + 'px'; box.style.top = (oy + e.clientY - sy) + 'px'; box.style.right = 'auto' })
       bar.addEventListener('pointerup', () => { drag = false })
 
-      box.querySelector('#bili-mini-close').addEventListener('click', () => { resumePageVideoNow(); miniStop() })
+      box.querySelector('#bili-mini-close').addEventListener('click', () => { miniActive = false; resumePageVideoNow(); miniStop() })
       miniBindDanmuBridge()
       if (localStorage.getItem('bili-mini-debug') === '1') {
         const t = box.querySelector('#bili-mini-test'); if (t) t.style.display = ''
@@ -453,7 +453,9 @@ window.__ModuleLoader__.load({
       })
       box.querySelector('#bili-mini-back').addEventListener('click', () => {
         pendingAutoSound = true
-        // 在用户手势内先恢复页面播放，避免触发浏览器“点击继续播放”
+        // 关键顺序：先解除小窗状态（否则页面 effect 会把视频重新静音），
+        // 再在同一个点击手势里恢复带声音播放，浏览器不会拦截
+        miniActive = false
         resumePageVideoNow()
         miniStop()
         // 无论当前是否在直播页，都切回面板；页面重新挂载时会以「已解锁声音」状态起播
@@ -1419,7 +1421,7 @@ window.__ModuleLoader__.load({
       const openMini = () => {
         if (!play || !Array.isArray(play.urls) || play.urls.length === 0) { alert('请先播放直播'); return }
         miniActive = true
-        try { if (videoRef.current) videoRef.current.muted = true } catch {}
+        try { if (videoRef.current) { videoRef.current.muted = true; videoRef.current.pause() } } catch {}
         miniPlay(room.id, play.urls, play.format || 'flv', room.title || room.uname || '')
       }
 

@@ -1024,6 +1024,11 @@ window.__ModuleLoader__.load({
         const videoHost = () => video.parentElement
         video.addEventListener('enterpictureinpicture', onEnterPip)
         video.addEventListener('leavepictureinpicture', onLeavePip)
+        if (biliLiveSession.video && document.getElementById('bili-live-mini') && String(biliLiveSession.roomId) === String(room.id)) {
+          // 迷你窗口正在播这个房间：页面只显示占位，避免双流
+          setPhase('ready')
+          return undefined
+        }
         const url = sources[Math.min(candidate, sources.length - 1)]
         if (play.format === 'hls') {
           let hls = null
@@ -1190,6 +1195,23 @@ window.__ModuleLoader__.load({
         if (!video) return
         biliMiniShow(video, room.id, room.title || room.uname || '', playerRef.current)
       }
+
+      useEffect(() => {
+        const onExpand = () => {
+          const v = biliLiveSession.video
+          const slot = videoRef.current
+          if (!v || !slot || !slot.parentElement) return
+          try { slot.parentElement.replaceChild(v, slot) } catch { return }
+          videoRef.current = v
+          v.style.width = '100%'; v.style.height = 'auto'; v.style.objectFit = 'contain'
+          biliLiveSession.video = null
+          biliLiveSession.player = null
+          const box = document.getElementById('bili-live-mini')
+          if (box) box.remove()
+        }
+        window.addEventListener('bili-live-expand-mini', onExpand)
+        return () => window.removeEventListener('bili-live-expand-mini', onExpand)
+      }, [])
 
       const toggleFullscreen = () => {
         if (document.fullscreenElement) {

@@ -1111,7 +1111,11 @@ window.__ModuleLoader__.load({
         if (miniActive || document.getElementById('bili-live-mini')) {
           try { miniStop() } catch {}
         }
-        return () => { pageMounted = false }
+        return () => {
+          pageMounted = false
+          // 页面卸载后，让小窗的弹幕连接在旧会话结束后重新建立
+          if (miniActive) setTimeout(() => { if (miniActive && miniDanmuOn) miniStartDanmu(miniRoomId) }, 800)
+        }
       }, [])
 
       const [attempt, setAttempt] = useState(0)

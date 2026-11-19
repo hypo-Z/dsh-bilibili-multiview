@@ -326,11 +326,11 @@ window.__ModuleLoader__.load({
       box = document.createElement('div')
       box.id = 'bili-live-mini'
       box.style.cssText = 'position:fixed;right:16px;top:80px;width:' + Math.round(360 * miniSize) + 'px;z-index:2147483200;background:#000;border:1px solid rgba(255,255,255,.18);border-radius:10px;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,.5);color:#eee;font:12px/1.4 -apple-system,BlinkMacSystemFont,sans-serif'
-      box.innerHTML = '<div id="bili-mini-bar" style="position:absolute;left:0;right:0;top:0;z-index:3;display:flex;align-items:center;gap:6px;padding:6px 8px;background:linear-gradient(180deg,rgba(8,8,10,.88),rgba(8,8,10,0));cursor:move;transition:opacity .25s"><b id="bili-mini-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 2px #000">直播</b><button id="bili-mini-play" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">暂停</button><button id="bili-mini-close" style="border:0;background:transparent;color:#fff;cursor:pointer">✕</button></div><div id="bili-mini-stage" style="position:relative;width:100%;aspect-ratio:16/9;background:#000;overflow:hidden"><video id="bili-mini-video" controls playsinline style="width:100%;height:100%;object-fit:cover"></video><div id="bili-mini-danmu" style="position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:2"></div></div><div id="bili-mini-foot" style="position:absolute;left:0;right:0;bottom:0;z-index:3;display:flex;align-items:center;gap:6px;padding:6px 8px;background:linear-gradient(0deg,rgba(8,8,10,.88),rgba(8,8,10,0));transition:opacity .25s"><input id="bili-mini-vol" type="range" min="0" max="100" value="100" style="flex:1"><button id="bili-mini-dm" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">弹幕 开</button><button id="bili-mini-size" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">尺寸 ' + miniSize + 'x</button><button id="bili-mini-cut" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">裁边 ' + Math.round(miniCut * 100) + '%</button><button id="bili-mini-back" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">回页面</button></div>'
+      box.innerHTML = '<div id="bili-mini-bar" style="position:absolute;left:0;right:0;top:0;z-index:3;display:flex;align-items:center;gap:6px;padding:6px 8px;background:linear-gradient(180deg,rgba(8,8,10,.88),rgba(8,8,10,0));cursor:move;transition:opacity .25s"><b id="bili-mini-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 2px #000">直播</b><button id="bili-mini-dm" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">弹幕 开</button><button id="bili-mini-size" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">尺寸 ' + miniSize + 'x</button><button id="bili-mini-back" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">回页面</button><button id="bili-mini-play" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">暂停</button><button id="bili-mini-close" style="border:0;background:transparent;color:#fff;cursor:pointer">✕</button></div><div id="bili-mini-stage" style="position:relative;width:100%;aspect-ratio:16/9;background:#000;overflow:hidden"><video id="bili-mini-video" controls playsinline style="width:100%;height:100%;object-fit:cover"></video><div id="bili-mini-danmu" style="position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:2"></div></div>'
       document.body.appendChild(box)
       const bar = box.querySelector('#bili-mini-bar')
       const foot = box.querySelector('#bili-mini-foot')
-      const chrome = [bar, foot]
+      const chrome = [bar, foot].filter(Boolean)
       let hideTimer = null
       const showChrome = () => { chrome.forEach((el) => { el.style.opacity = '1'; el.style.pointerEvents = 'auto' }) }
       const hideChrome = () => { chrome.forEach((el) => { el.style.opacity = '0'; el.style.pointerEvents = 'none' }) }
@@ -345,6 +345,7 @@ window.__ModuleLoader__.load({
       bar.addEventListener('pointerup', () => { drag = false })
 
       box.querySelector('#bili-mini-close').addEventListener('click', () => miniStop())
+      miniBindDanmuBridge()
       box.querySelector('#bili-mini-play').addEventListener('click', () => {
         const v = box.querySelector('#bili-mini-video')
         if (!v) return
@@ -361,7 +362,8 @@ window.__ModuleLoader__.load({
         else miniStopDanmu()
         scheduleHide()
       })
-      box.querySelector('#bili-mini-vol').addEventListener('input', (e) => {
+      const volInput = box.querySelector('#bili-mini-vol')
+      if (volInput) volInput.addEventListener('input', (e) => {
         const v = box.querySelector('#bili-mini-video')
         if (v) v.volume = Number(e.target.value) / 100
       })
@@ -373,7 +375,8 @@ window.__ModuleLoader__.load({
         box.querySelector('#bili-mini-size').textContent = '尺寸 ' + miniSize + 'x'
         scheduleHide()
       })
-      box.querySelector('#bili-mini-cut').addEventListener('click', () => {
+      const cutBtn = box.querySelector('#bili-mini-cut')
+      if (cutBtn) cutBtn.addEventListener('click', () => {
         miniCut = miniCut >= 0.3 ? 0 : Math.round((miniCut + 0.1) * 10) / 10
         try { localStorage.setItem('bili-mini-cut', String(miniCut)) } catch {}
         box.querySelector('#bili-mini-cut').textContent = '裁边 ' + Math.round(miniCut * 100) + '%'
@@ -407,6 +410,29 @@ window.__ModuleLoader__.load({
       if (layer) layer.textContent = ''
     }
 
+    function miniPushDanmu(rawText, kind) {
+      if (!miniDanmuOn || !miniActive) return
+      const layer = document.getElementById('bili-mini-danmu')
+      if (!layer) return
+      const text = String(rawText || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 120)
+      if (!text) return
+      const el = document.createElement('div')
+      el.textContent = text
+      el.style.cssText = 'position:absolute;left:100%;top:' + (3 + Math.random() * 78) + '%;white-space:nowrap;font-size:' + (13 + Math.random() * 3).toFixed(0) + 'px;color:' + (kind === 'gift' ? '#ffd469' : kind === 'super' ? '#7fd1ff' : '#fff') + ';text-shadow:0 1px 3px rgba(0,0,0,.9);animation:bili-dm-move ' + (7 + Math.random() * 3).toFixed(2) + 's linear forwards'
+      layer.appendChild(el)
+      setTimeout(() => el.remove(), 11000)
+      if (layer.childElementCount > 60) layer.firstElementChild?.remove()
+    }
+
+    function miniBindDanmuBridge() {
+      if (window.__biliMiniDmBound) return
+      window.__biliMiniDmBound = true
+      window.addEventListener('bili-mini-danmaku', (event) => {
+        const detail = event.detail || {}
+        miniPushDanmu(detail.text, detail.kind)
+      })
+    }
+
     function miniStartDanmu(roomId) {
       miniStopDanmu()
       if (!miniDanmuOn) return
@@ -420,14 +446,7 @@ window.__ModuleLoader__.load({
         let payload
         try { payload = JSON.parse(event.data) } catch { return }
         if (!payload || typeof payload.text !== 'string') return
-        const text = payload.text.replace(/[\r\n]+/g, ' ').trim().slice(0, 120)
-        if (!text) return
-        const el = document.createElement('div')
-        el.textContent = text
-        el.style.cssText = 'position:absolute;left:100%;top:' + (3 + Math.random() * 78) + '%;white-space:nowrap;font-size:' + (13 + Math.random() * 3).toFixed(0) + 'px;color:' + (payload.kind === 'gift' ? '#ffd469' : payload.kind === 'super' ? '#7fd1ff' : '#fff') + ';text-shadow:0 1px 3px rgba(0,0,0,.9);animation:bili-dm-move ' + (7 + Math.random() * 3).toFixed(2) + 's linear forwards'
-        layer.appendChild(el)
-        setTimeout(() => el.remove(), 11000)
-        if (layer.childElementCount > 60) layer.firstElementChild?.remove()
+        miniPushDanmu(payload.text, payload.kind)
       }
     }
 
@@ -569,6 +588,7 @@ window.__ModuleLoader__.load({
             if (!text) return
             if (pending.length > 200) pending.shift()
             const kind = payload.kind === 'gift' || payload.kind === 'super' ? payload.kind : 'danmu'
+            try { window.dispatchEvent(new CustomEvent('bili-mini-danmaku', { detail: { text, kind } })) } catch {}
             pending.push({
               id: `${counter++}`,
               kind,

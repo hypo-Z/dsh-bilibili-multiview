@@ -18,183 +18,6 @@ window.__ModuleLoader__.load({
     const STORE_KEY = 'dsh.bilibili-multiview.v1'
     const LEGACY_STORE_KEY = 'dsh.bilibili-live.v1'
     const GAP = 18
-
-    // ── 常驻迷你播放器（模块级，切页不销毁） ───────────────────────
-    const biliLiveSession = { video: null, player: null, roomId: null, title: '' }
-    let biliPageMounted = false
-    let biliLayout = null
-
-    function biliMiniEnsure() {
-      let box = document.getElementById('bili-live-mini')
-      if (box) return box
-      box = document.createElement('div')
-      box.id = 'bili-live-mini'
-      box.style.cssText = 'position:fixed;right:16px;top:80px;width:360px;z-index:2147483200;background:#111;border:1px solid rgba(255,255,255,.18);border-radius:10px;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,.5);color:#eee;font:12px/1.4 -apple-system,BlinkMacSystemFont,sans-serif'
-      box.innerHTML = '<div id="bili-mini-bar" class="bili-mini-chrome" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:#1b1b1f;cursor:move;transition:opacity .25s"><b id="bili-mini-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">直播</b><button id="bili-mini-play" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">暂停</button><button id="bili-mini-close" style="border:0;background:transparent;color:#fff;cursor:pointer">✕</button></div><div id="bili-mini-stage" style="width:100%;aspect-ratio:16/9;background:#000"></div><div id="bili-mini-foot" class="bili-mini-chrome" style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#17171b;transition:opacity .25s"><input id="bili-mini-vol" type="range" min="0" max="100" value="100" style="flex:1"><button id="bili-mini-size" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">尺寸 1x</button><button id="bili-mini-expand" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">回页面</button></div>'
-      document.body.appendChild(box)
-      const foot = box.querySelector('#bili-mini-foot')
-      const chrome = [box.querySelector('#bili-mini-bar'), foot]
-      let hideTimer = null
-      const showChrome = () => {
-        chrome.forEach((el) => { if (el) { el.style.opacity = '1'; el.style.pointerEvents = 'auto' } })
-      }
-      const hideChrome = () => {
-        chrome.forEach((el) => { if (el) { el.style.opacity = '0'; el.style.pointerEvents = 'none' } })
-      }
-      const scheduleHide = () => {
-        showChrome()
-        if (hideTimer) clearTimeout(hideTimer)
-        hideTimer = setTimeout(hideChrome, 3000)
-      }
-      box.addEventListener('pointerenter', scheduleHide)
-      box.addEventListener('pointermove', scheduleHide)
-      scheduleHide()
-
-      const SIZES = [0.85, 1, 1.3, 1.6]
-      let sizeIndex = Math.max(0, SIZES.indexOf(Number(localStorage.getItem('bili-mini-size') || '1')))
-      if (sizeIndex < 0) sizeIndex = 1
-      const applySize = () => {
-        const scale = SIZES[sizeIndex]
-        box.style.width = Math.round(360 * scale) + 'px'
-        box.querySelector('#bili-mini-size').textContent = '尺寸 ' + scale + 'x'
-        try { localStorage.setItem('bili-mini-size', String(scale)) } catch {}
-      }
-      applySize()
-      box.querySelector('#bili-mini-size').addEventListener('click', () => {
-        sizeIndex = (sizeIndex + 1) % SIZES.length
-        applySize()
-        scheduleHide()
-      })
-
-      const bar = box.querySelector('#bili-mini-bar')
-      let sx = 0, sy = 0, ox = 0, oy = 0, dragging = false
-      bar.addEventListener('pointerdown', (e) => {
-        if (e.target.closest('button')) return
-        dragging = true; sx = e.clientX; sy = e.clientY
-        const r = box.getBoundingClientRect(); ox = r.left; oy = r.top
-        bar.setPointerCapture(e.pointerId)
-      })
-      bar.addEventListener('pointermove', (e) => {
-        if (!dragging) return
-        box.style.left = (ox + e.clientX - sx) + 'px'
-        box.style.top = (oy + e.clientY - sy) + 'px'
-        box.style.right = 'auto'
-      })
-      bar.addEventListener('pointerup', () => { dragging = false })
-      box.querySelector('#bili-mini-play').addEventListener('click', () => {
-        const v = biliLiveSession.video
-        if (!v) return
-        if (v.paused) v.play().catch(() => {})
-        else v.pause()
-        box.querySelector('#bili-mini-play').textContent = v.paused ? '播放' : '暂停'
-      })
-      box.querySelector('#bili-mini-vol').addEventListener('input', (e) => {
-        const v = biliLiveSession.video
-        if (v) v.volume = Number(e.target.value) / 100
-      })
-      box.querySelector('#bili-mini-close').addEventListener('click', () => {
-        window.dispatchEvent(new CustomEvent('bili-live-mini-closed'))
-        biliMiniStop()
-      })
-      box.querySelector('#bili-mini-expand').addEventListener('click', () => {
-        if (!biliPageMounted) {
-          try {
-            if (biliLayout && typeof biliLayout.selectPanel === 'function') biliLayout.selectPanel('bilibili-multiview')
-          } catch {}
-          setTimeout(() => {
-            if (biliPageMounted) window.dispatchEvent(new CustomEvent('bili-live-expand-mini'))
-            else alert('请先切回「bilibili 直播」页面，再点「回页面」')
-          }, 500)
-          return
-        }
-        window.dispatchEvent(new CustomEvent('bili-live-expand-mini'))
-      })
-      return box
-    }
-
-    function biliMiniStyleVideo(video) {
-      const box = document.getElementById('bili-live-mini')
-      const stage = box && box.querySelector('#bili-mini-stage')
-      if (!stage) return
-      video.style.width = '100%'
-      video.style.height = '100%'
-      video.style.objectFit = 'cover'
-      const applyAspect = () => {
-        if (video.videoWidth && video.videoHeight) {
-          stage.style.aspectRatio = video.videoWidth + ' / ' + video.videoHeight
-          stage.style.height = 'auto'
-        }
-      }
-      applyAspect()
-      if (!video.dataset.miniAspect) {
-        video.dataset.miniAspect = '1'
-        video.addEventListener('loadedmetadata', applyAspect)
-        video.addEventListener('resize', applyAspect)
-      }
-    }
-
-    async function biliMiniPlay(roomId, urls, format, title) {
-      const box = biliMiniEnsure()
-      const stage = box.querySelector('#bili-mini-stage')
-      if (biliLiveSession.player) { try { biliLiveSession.player.destroy() } catch {} }
-      let video = stage.querySelector('video')
-      if (!video) {
-        video = document.createElement('video')
-        video.controls = true
-        video.autoplay = true
-        video.playsInline = true
-        stage.appendChild(video)
-      }
-      biliMiniStyleVideo(video)
-      const url = urls[0]
-      try {
-        if (format === 'hls') {
-          const Hls = await loadHls()
-          const hls = new Hls({ lowLatencyMode: true })
-          hls.loadSource('/bilibili-multiview/api/hls-open?u=' + encodeURIComponent(url))
-          hls.attachMedia(video)
-          biliLiveSession.player = hls
-        } else {
-          const mpegts = await loadMpegts()
-          const p = mpegts.createPlayer(
-            { type: 'flv', isLive: true, url: '/bilibili-multiview/api/stream?u=' + encodeURIComponent(url), hasAudio: true, hasVideo: true },
-            { enableWorker: false, enableStashBuffer: false, lazyLoad: false, liveBufferLatencyChasing: true },
-          )
-          p.attachMediaElement(video)
-          p.load()
-          biliLiveSession.player = p
-        }
-      } catch (error) {
-        console.error('[bili-mini] play failed', error)
-      }
-      biliLiveSession.video = video
-      biliLiveSession.roomId = roomId
-      box.querySelector('#bili-mini-title').textContent = title || ('房间 ' + roomId)
-      try { await video.play() } catch {}
-    }
-
-    function biliMiniStop() {
-      try { biliLiveSession.player?.destroy?.() } catch {}
-      try { document.querySelector('#bili-mini-stage video')?.remove() } catch {}
-      biliLiveSession.player = null
-      biliLiveSession.video = null
-      document.getElementById('bili-live-mini')?.remove()
-    }
-
-    function biliMiniShow(video, roomId, title, player) {
-      const box = biliMiniEnsure()
-      const stage = box.querySelector('#bili-mini-stage')
-      stage.appendChild(video)
-      biliMiniStyleVideo(video)
-      biliLiveSession.video = video
-      biliLiveSession.player = player || null
-      biliLiveSession.roomId = roomId
-      biliLiveSession.title = title || ''
-      box.querySelector('#bili-mini-title').textContent = title || ('房间 ' + roomId)
-      try { video.play().catch(() => {}) } catch {}
-      box.querySelector('#bili-mini-play').textContent = video.paused ? '播放' : '暂停'
-    }
-
     const STACK_GAP = 10
     const DUCK_FACTOR = 0.2
     const VOLUME_STEP = 5
@@ -471,22 +294,6 @@ window.__ModuleLoader__.load({
     }
 
     let mpegtsPromise = null
-    let hlsPromise = null
-    function loadHls() {
-      if (window.Hls) return Promise.resolve(window.Hls)
-      if (hlsPromise) return hlsPromise
-      hlsPromise = new Promise((resolve, reject) => {
-        const script = document.createElement('script')
-        script.dataset.bilibiliLiveVendor = 'hls'
-        script.async = true
-        script.src = '/bilibili-multiview/vendor/hls.js'
-        script.addEventListener('load', () => { window.Hls ? resolve(window.Hls) : reject(new Error('Hls 未加载')) })
-        script.addEventListener('error', () => reject(new Error('Hls 加载失败')))
-        document.head.appendChild(script)
-      })
-      return hlsPromise
-    }
-
     function loadMpegts() {
       if (window.mpegts) {
         if (window.mpegts.LoggingControl) window.mpegts.LoggingControl.enableAll = false
@@ -1097,114 +904,12 @@ window.__ModuleLoader__.load({
       }, [room.id, room.liveStatus, quality, attempt])
 
       useEffect(() => {
-        const video = videoRef.current
-        if (!video) return undefined
-        const onPlay = () => { try { window.dispatchEvent(new Event('bili-live-video-play')) } catch {} }
-        video.addEventListener('play', onPlay)
-        return () => video.removeEventListener('play', onPlay)
-      }, [])
-
-      useEffect(() => {
         if (!play || !sources.length) return undefined
         const video = videoRef.current
         if (!video) return undefined
-        if (pageMode !== 'page') return undefined
         let disposed = false
         let player = null
-        if (window.__biliLivePip) {
-          try { if (document.pictureInPictureElement) document.exitPictureInPicture() } catch {}
-          try { window.__biliLivePip.player?.destroy() } catch {}
-          try { window.__biliLivePip.video?.remove() } catch {}
-          window.__biliLivePip = null
-        }
-        const pipHolder = () => {
-          let holder = document.getElementById('bili-live-pip-holder')
-          if (!holder) {
-            holder = document.createElement('div')
-            holder.id = 'bili-live-pip-holder'
-            holder.style.cssText = 'position:fixed;left:-4000px;top:0;width:2px;height:2px;overflow:hidden;pointer-events:none'
-            document.body.appendChild(holder)
-          }
-          return holder
-        }
-        const onEnterPip = () => {
-          if (!video) return
-          video.dataset.pipParent = '1'
-          try { pipHolder().appendChild(video) } catch {}
-        }
-        const onLeavePip = () => {
-          if (!video) return
-          try { videoHost()?.appendChild(video) } catch {}
-        }
-        const videoHost = () => video.parentElement
-        video.addEventListener('enterpictureinpicture', onEnterPip)
-        video.addEventListener('leavepictureinpicture', onLeavePip)
-        // 换了房间或没有迷你窗：先彻底销毁旧会话，保证同一时间只有一路声音
-        if (biliLiveSession.video && (!document.getElementById('bili-live-mini') || String(biliLiveSession.roomId) !== String(room.id))) {
-          try { document.getElementById('bili-live-mini')?.remove() } catch {}
-          try { biliLiveSession.player?.destroy() } catch {}
-          try { biliLiveSession.video?.remove() } catch {}
-          biliLiveSession.video = null
-          biliLiveSession.player = null
-        }
-        if (biliLiveSession.video && String(biliLiveSession.roomId) === String(room.id)) {
-          // 已有播放中的会话：直接把视频接回页面，不再新建播放器（避免双流/回声）
-          const sessionVideo = biliLiveSession.video
-          const slot = videoRef.current
-          if (slot && slot.parentElement) {
-            try { slot.parentElement.replaceChild(sessionVideo, slot) } catch {}
-          }
-          videoRef.current = sessionVideo
-          playerRef.current = biliLiveSession.player
-          try { document.getElementById('bili-live-mini')?.remove() } catch {}
-          sessionVideo.style.width = '100%'
-          sessionVideo.style.height = 'auto'
-          sessionVideo.style.objectFit = 'contain'
-          try { sessionVideo.play().catch(() => {}) } catch {}
-          setPhase('playing')
-          return () => {
-            const mini = document.getElementById('bili-live-mini')
-            if (mini) {
-              try { mini.querySelector('#bili-mini-stage').appendChild(sessionVideo) } catch {}
-              biliLiveSession.video = sessionVideo
-              biliLiveSession.player = biliLiveSession.player || null
-              return
-            }
-            try { biliLiveSession.player?.destroy() } catch {}
-            biliLiveSession.video = null
-            biliLiveSession.player = null
-          }
-        }
         const url = sources[Math.min(candidate, sources.length - 1)]
-        if (play.format === 'hls') {
-          let hls = null
-          loadHls()
-            .then((Hls) => {
-              if (disposed) return
-              if (typeof Hls.isSupported === 'function' && !Hls.isSupported()) throw new Error('当前浏览器不支持 HLS 播放')
-              hls = new Hls({ lowLatencyMode: true })
-              hls.on(Hls.Events.MANIFEST_PARSED, () => { if (!disposed) { setError(''); setPhase('ready') } })
-              hls.on(Hls.Events.ERROR, (_event, data) => {
-                if (disposed || !data || !data.fatal) return
-                setError('HLS 播放失败：' + (data.details || data.type || ''))
-                setPhase('error')
-              })
-              hls.loadSource('/bilibili-multiview/api/hls?u=' + encodeURIComponent(play.urls[0]))
-              hls.attachMedia(video)
-              playerRef.current = hls
-              video.addEventListener('playing', () => { if (!disposed) setPhase('ready') }, { once: true })
-            })
-            .catch(() => {
-              if (disposed) return
-              setError(tRef.current('play_error'))
-              setPhase('error')
-            })
-          return () => {
-            disposed = true
-            if (hls) { try { hls.destroy() } catch {} }
-            try { if (playerRef.current === hls) playerRef.current = null } catch {}
-          }
-        }
 
         loadMpegts()
           .then((mpegts) => {
@@ -1270,10 +975,6 @@ window.__ModuleLoader__.load({
 
         return () => {
           disposed = true
-          try {
-            video.removeEventListener('enterpictureinpicture', onEnterPip)
-            video.removeEventListener('leavepictureinpicture', onLeavePip)
-          } catch {}
           if (player) {
             try {
               player.pause()
@@ -1304,7 +1005,7 @@ window.__ModuleLoader__.load({
             /* ignore */
           }
         }
-      }, [play, sources, candidate, pageMode])
+      }, [play, sources, candidate])
 
       useEffect(() => {
         const video = videoRef.current
@@ -1325,35 +1026,6 @@ window.__ModuleLoader__.load({
         const onChange = () => setIsFullscreen(document.fullscreenElement === rootRef.current)
         document.addEventListener('fullscreenchange', onChange)
         return () => document.removeEventListener('fullscreenchange', onChange)
-      }, [])
-
-      const togglePip = () => {
-        if (document.getElementById('bili-live-mini')) {
-          biliMiniStop()
-          setPageMode('page')
-          return
-        }
-        if (!play || !Array.isArray(play.urls) || play.urls.length === 0) {
-          alert('请先播放直播再打开小窗')
-          return
-        }
-        setPageMode('mini')
-        biliMiniPlay(room.id, play.urls, play.format || 'flv', room.title || room.uname || '')
-      }
-
-      useEffect(() => {
-        const back = () => { biliMiniStop(); setPageMode('page') }
-        window.addEventListener('bili-live-expand-mini', back)
-        window.addEventListener('bili-live-mini-closed', back)
-        return () => {
-          window.removeEventListener('bili-live-expand-mini', back)
-          window.removeEventListener('bili-live-mini-closed', back)
-        }
-      }, [])
-
-      useEffect(() => {
-        biliPageMounted = true
-        return () => { biliPageMounted = false }
       }, [])
 
       const toggleFullscreen = () => {
@@ -1495,17 +1167,6 @@ window.__ModuleLoader__.load({
                 'aria-haspopup': 'menu',
               },
               h(Glyph, { name: 'move', size: 15 }),
-            ),
-            h(
-              'button',
-              {
-                className: 'bl-icon-btn',
-                type: 'button',
-                onClick: togglePip,
-                title: '小窗播放',
-                'aria-label': '小窗播放',
-              },
-              h('span', { style: { fontSize: 13, lineHeight: 1 } }, '⧉'),
             ),
             h(
               'button',
@@ -2002,13 +1663,6 @@ window.__ModuleLoader__.load({
       const [danmakuOn, setDanmakuOn] = useState(stored.danmaku)
       const [soloId, setSoloId] = useState(null)
       const [audioUnlocked, setAudioUnlocked] = useState(false)
-      const [pageMode, setPageMode] = useState('page')
-      // 第一次点页面任意位置（选房间/刷新等）就解锁声音，避免默认静音起播
-      useEffect(() => {
-        const unlock = () => setAudioUnlocked(true)
-        document.addEventListener('pointerdown', unlock, { once: true })
-        return () => document.removeEventListener('pointerdown', unlock)
-      }, [])
       const [session, setSession] = useState(null)
       const [sessionError, setSessionError] = useState('')
       const [cookieOpen, setCookieOpen] = useState(false)
@@ -3244,9 +2898,6 @@ window.__ModuleLoader__.load({
     }
 
     function apply(ctx) {
-      try {
-        biliLayout = ctx.layout || (typeof ctx.get === 'function' ? ctx.get('layout') : null) || null
-      } catch {}
       ctx.effect(
         () =>
           ctx.locale.register(NS, {

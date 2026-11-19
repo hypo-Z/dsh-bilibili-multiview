@@ -1086,6 +1086,7 @@ window.__ModuleLoader__.load({
               hls.attachMedia(video)
               video.addEventListener('playing', () => { if (!disposed) setPhase('ready') }, { once: true })
               video.addEventListener('canplay', () => { if (!disposed) setPhase('ready') }, { once: true })
+              video.addEventListener('timeupdate', () => { if (!disposed) setPhase('playing') }, { once: true })
               setTimeout(() => { if (!disposed) { setPhase((value) => (value === 'playing' ? value : 'ready')) } }, 800)
             })
             .catch(() => {

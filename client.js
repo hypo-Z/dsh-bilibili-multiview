@@ -316,6 +316,7 @@ window.__ModuleLoader__.load({
     let miniLayout = null
     let pageMounted = false
     let miniCut = Number(localStorage.getItem('bili-mini-cut') || '0') || 0
+    let miniRoomId = ''
     let miniSize = Number(localStorage.getItem('bili-mini-size') || '1') || 1
     const MINI_SIZES = [0.85, 1, 1.3, 1.6]
 
@@ -324,8 +325,8 @@ window.__ModuleLoader__.load({
       if (box) return box
       box = document.createElement('div')
       box.id = 'bili-live-mini'
-      box.style.cssText = 'position:fixed;right:16px;top:80px;width:' + Math.round(360 * miniSize) + 'px;z-index:2147483200;background:#111;border:1px solid rgba(255,255,255,.18);border-radius:10px;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,.5);color:#eee;font:12px/1.4 -apple-system,BlinkMacSystemFont,sans-serif'
-      box.innerHTML = '<div id="bili-mini-bar" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:#1b1b1f;cursor:move;transition:opacity .25s"><b id="bili-mini-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">直播</b><button id="bili-mini-play" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">暂停</button><button id="bili-mini-close" style="border:0;background:transparent;color:#fff;cursor:pointer">✕</button></div><div id="bili-mini-stage" style="width:100%;aspect-ratio:16/9;background:#000;overflow:hidden"><video id="bili-mini-video" controls playsinline style="width:100%;height:100%;object-fit:cover"></video></div><div id="bili-mini-foot" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:#17171b;transition:opacity .25s"><input id="bili-mini-vol" type="range" min="0" max="100" value="100" style="flex:1"><button id="bili-mini-size" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">尺寸 ' + miniSize + 'x</button><button id="bili-mini-cut" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">裁边 ' + Math.round(miniCut * 100) + '%</button><button id="bili-mini-back" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">回页面</button></div>'
+      box.style.cssText = 'position:fixed;right:16px;top:80px;width:' + Math.round(360 * miniSize) + 'px;z-index:2147483200;background:#000;border:1px solid rgba(255,255,255,.18);border-radius:10px;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,.5);color:#eee;font:12px/1.4 -apple-system,BlinkMacSystemFont,sans-serif'
+      box.innerHTML = '<div id="bili-mini-bar" style="position:absolute;left:0;right:0;top:0;z-index:3;display:flex;align-items:center;gap:6px;padding:6px 8px;background:linear-gradient(180deg,rgba(8,8,10,.88),rgba(8,8,10,0));cursor:move;transition:opacity .25s"><b id="bili-mini-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 2px #000">直播</b><button id="bili-mini-play" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">暂停</button><button id="bili-mini-close" style="border:0;background:transparent;color:#fff;cursor:pointer">✕</button></div><div id="bili-mini-stage" style="position:relative;width:100%;aspect-ratio:16/9;background:#000;overflow:hidden"><video id="bili-mini-video" controls playsinline style="width:100%;height:100%;object-fit:cover"></video><div id="bili-mini-danmu" style="position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:2"></div></div><div id="bili-mini-foot" style="position:absolute;left:0;right:0;bottom:0;z-index:3;display:flex;align-items:center;gap:6px;padding:6px 8px;background:linear-gradient(0deg,rgba(8,8,10,.88),rgba(8,8,10,0));transition:opacity .25s"><input id="bili-mini-vol" type="range" min="0" max="100" value="100" style="flex:1"><button id="bili-mini-dm" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">弹幕 开</button><button id="bili-mini-size" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">尺寸 ' + miniSize + 'x</button><button id="bili-mini-cut" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">裁边 ' + Math.round(miniCut * 100) + '%</button><button id="bili-mini-back" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">回页面</button></div>'
       document.body.appendChild(box)
       const bar = box.querySelector('#bili-mini-bar')
       const foot = box.querySelector('#bili-mini-foot')
@@ -350,6 +351,14 @@ window.__ModuleLoader__.load({
         if (v.paused) v.play().catch(() => {})
         else v.pause()
         box.querySelector('#bili-mini-play').textContent = v.paused ? '播放' : '暂停'
+        scheduleHide()
+      })
+      box.querySelector('#bili-mini-dm').addEventListener('click', () => {
+        miniDanmuOn = !miniDanmuOn
+        try { localStorage.setItem('bili-mini-danmaku', miniDanmuOn ? '1' : '0') } catch {}
+        box.querySelector('#bili-mini-dm').textContent = '弹幕 ' + (miniDanmuOn ? '开' : '关')
+        if (miniDanmuOn) miniStartDanmu(miniRoomId)
+        else miniStopDanmu()
         scheduleHide()
       })
       box.querySelector('#bili-mini-vol').addEventListener('input', (e) => {
@@ -378,6 +387,48 @@ window.__ModuleLoader__.load({
         }
       })
       return box
+    }
+
+    let miniDanmuSource = null
+    let miniDanmuOn = localStorage.getItem('bili-mini-danmaku') !== '0'
+
+    function miniEnsureStyle() {
+      if (document.getElementById('bili-mini-danmu-style')) return
+      const style = document.createElement('style')
+      style.id = 'bili-mini-danmu-style'
+      style.textContent = '@keyframes bili-dm-move { from { transform: translateX(0) } to { transform: translateX(-140vw) } }'
+      document.head.appendChild(style)
+    }
+
+    function miniStopDanmu() {
+      try { if (miniDanmuSource) miniDanmuSource.close() } catch {}
+      miniDanmuSource = null
+      const layer = document.getElementById('bili-mini-danmu')
+      if (layer) layer.textContent = ''
+    }
+
+    function miniStartDanmu(roomId) {
+      miniStopDanmu()
+      if (!miniDanmuOn) return
+      miniEnsureStyle()
+      const layer = document.getElementById('bili-mini-danmu')
+      if (!layer) return
+      try {
+        miniDanmuSource = new EventSource('/bilibili-multiview/api/danmu/events?room=' + encodeURIComponent(roomId))
+      } catch { return }
+      miniDanmuSource.onmessage = (event) => {
+        let payload
+        try { payload = JSON.parse(event.data) } catch { return }
+        if (!payload || typeof payload.text !== 'string') return
+        const text = payload.text.replace(/[\r\n]+/g, ' ').trim().slice(0, 120)
+        if (!text) return
+        const el = document.createElement('div')
+        el.textContent = text
+        el.style.cssText = 'position:absolute;left:100%;top:' + (3 + Math.random() * 78) + '%;white-space:nowrap;font-size:' + (13 + Math.random() * 3).toFixed(0) + 'px;color:' + (payload.kind === 'gift' ? '#ffd469' : payload.kind === 'super' ? '#7fd1ff' : '#fff') + ';text-shadow:0 1px 3px rgba(0,0,0,.9);animation:bili-dm-move ' + (7 + Math.random() * 3).toFixed(2) + 's linear forwards'
+        layer.appendChild(el)
+        setTimeout(() => el.remove(), 11000)
+        if (layer.childElementCount > 60) layer.firstElementChild?.remove()
+      }
     }
 
     function miniFit(box) {
@@ -413,6 +464,8 @@ window.__ModuleLoader__.load({
       } catch (error) { console.error('[bili-mini]', error) }
       try { await video.play() } catch {}
       miniFit(box)
+      miniRoomId = roomId
+      miniStartDanmu(roomId)
       video.addEventListener('loadedmetadata', () => miniFit(box))
     }
 
@@ -425,6 +478,7 @@ window.__ModuleLoader__.load({
 
     function miniStop() {
       miniStopPlayer()
+      miniStopDanmu()
       miniActive = false
       document.getElementById('bili-live-mini')?.remove()
       window.dispatchEvent(new CustomEvent('bili-live-mini-closed'))

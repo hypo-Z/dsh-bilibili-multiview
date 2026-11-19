@@ -933,6 +933,34 @@ window.__ModuleLoader__.load({
         if (!video) return undefined
         let disposed = false
         let player = null
+        if (window.__biliLivePip) {
+          try { if (document.pictureInPictureElement) document.exitPictureInPicture() } catch {}
+          try { window.__biliLivePip.player?.destroy() } catch {}
+          try { window.__biliLivePip.video?.remove() } catch {}
+          window.__biliLivePip = null
+        }
+        const pipHolder = () => {
+          let holder = document.getElementById('bili-live-pip-holder')
+          if (!holder) {
+            holder = document.createElement('div')
+            holder.id = 'bili-live-pip-holder'
+            holder.style.cssText = 'position:fixed;left:-4000px;top:0;width:2px;height:2px;overflow:hidden;pointer-events:none'
+            document.body.appendChild(holder)
+          }
+          return holder
+        }
+        const onEnterPip = () => {
+          if (!video) return
+          video.dataset.pipParent = '1'
+          try { pipHolder().appendChild(video) } catch {}
+        }
+        const onLeavePip = () => {
+          if (!video) return
+          try { videoHost()?.appendChild(video) } catch {}
+        }
+        const videoHost = () => video.parentElement
+        video.addEventListener('enterpictureinpicture', onEnterPip)
+        video.addEventListener('leavepictureinpicture', onLeavePip)
         const url = sources[Math.min(candidate, sources.length - 1)]
         if (play.format === 'hls') {
           let hls = null
@@ -1026,6 +1054,16 @@ window.__ModuleLoader__.load({
 
         return () => {
           disposed = true
+          try {
+            video.removeEventListener('enterpictureinpicture', onEnterPip)
+            video.removeEventListener('leavepictureinpicture', onLeavePip)
+          } catch {}
+          if (document.pictureInPictureElement === video) {
+            // 小窗模式：视频已移出 React 子树，保留播放器，切页不中断
+            window.__biliLivePip = { player, video }
+            playerRef.current = null
+            return
+          }
           if (player) {
             try {
               player.pause()

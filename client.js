@@ -317,6 +317,7 @@ window.__ModuleLoader__.load({
     let pageMounted = false
     let miniCut = Number(localStorage.getItem('bili-mini-cut') || '0') || 0
     let miniRoomId = ''
+    let pendingAutoSound = false
     let miniSize = Number(localStorage.getItem('bili-mini-size') || '1') || 1
     const MINI_SIZES = [0.85, 1, 1.3, 1.6]
 
@@ -425,8 +426,9 @@ window.__ModuleLoader__.load({
         scheduleHide()
       })
       box.querySelector('#bili-mini-back').addEventListener('click', () => {
+        pendingAutoSound = true
         miniStop()
-        // 无论当前是否在直播页，都切回面板；页面若已挂载则立即恢复播放
+        // 无论当前是否在直播页，都切回面板；页面重新挂载时会以「已解锁声音」状态起播
         try { if (miniLayout && typeof miniLayout.selectPanel === 'function') miniLayout.selectPanel('bilibili-multiview') } catch {}
       })
       return box
@@ -1999,7 +2001,11 @@ window.__ModuleLoader__.load({
       const [quality, setQuality] = useState(stored.quality)
       const [danmakuOn, setDanmakuOn] = useState(stored.danmaku)
       const [soloId, setSoloId] = useState(null)
-      const [audioUnlocked, setAudioUnlocked] = useState(false)
+      const [audioUnlocked, setAudioUnlocked] = useState(() => {
+        const pending = pendingAutoSound
+        pendingAutoSound = false
+        return pending
+      })
       const [session, setSession] = useState(null)
       const [sessionError, setSessionError] = useState('')
       const [cookieOpen, setCookieOpen] = useState(false)

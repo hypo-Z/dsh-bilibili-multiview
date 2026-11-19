@@ -317,6 +317,7 @@ window.__ModuleLoader__.load({
     let pageMounted = false
     let miniCut = Number(localStorage.getItem('bili-mini-cut') || '0') || 0
     let miniRoomId = ''
+    let pageVideoEl = null
     let pendingAutoSound = false
     let miniSize = Number(localStorage.getItem('bili-mini-size') || '1') || 1
     const MINI_SIZES = [0.85, 1, 1.3, 1.6]
@@ -351,6 +352,13 @@ window.__ModuleLoader__.load({
       labels()
     }
 
+    function resumePageVideoNow() {
+      const video = pageVideoEl
+      if (!video) return
+      try { video.muted = false; video.volume = 1 } catch {}
+      try { const started = video.play(); if (started && started.catch) started.catch(() => {}) } catch {}
+    }
+
     function miniEnsure() {
       let box = document.getElementById('bili-live-mini')
       if (box) return box
@@ -375,7 +383,7 @@ window.__ModuleLoader__.load({
       bar.addEventListener('pointermove', (e) => { if (!drag) return; box.style.left = (ox + e.clientX - sx) + 'px'; box.style.top = (oy + e.clientY - sy) + 'px'; box.style.right = 'auto' })
       bar.addEventListener('pointerup', () => { drag = false })
 
-      box.querySelector('#bili-mini-close').addEventListener('click', () => miniStop())
+      box.querySelector('#bili-mini-close').addEventListener('click', () => { resumePageVideoNow(); miniStop() })
       miniBindDanmuBridge()
       if (localStorage.getItem('bili-mini-debug') === '1') {
         const t = box.querySelector('#bili-mini-test'); if (t) t.style.display = ''
@@ -443,6 +451,8 @@ window.__ModuleLoader__.load({
       })
       box.querySelector('#bili-mini-back').addEventListener('click', () => {
         pendingAutoSound = true
+        // 在用户手势内先恢复页面播放，避免触发浏览器“点击继续播放”
+        resumePageVideoNow()
         miniStop()
         // 无论当前是否在直播页，都切回面板；页面重新挂载时会以「已解锁声音」状态起播
         try { if (miniLayout && typeof miniLayout.selectPanel === 'function') miniLayout.selectPanel('bilibili-multiview') } catch {}
@@ -1384,6 +1394,7 @@ window.__ModuleLoader__.load({
       useEffect(() => {
         const video = videoRef.current
         if (!video) return
+        pageVideoEl = video
         if (miniActive) { video.muted = true; try { video.pause() } catch {} ; return }
         const fullVolume = focused || soloId === room.id
         video.volume = clamp((Number(volume) / 100) * (fullVolume ? 1 : DUCK_FACTOR), 0, 1)

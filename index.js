@@ -622,6 +622,7 @@ async function streamDanmaku(request, response, roomIdInput) {
     if (closed || response.writableEnded) return
     debug('sse write', value?.type || value?.kind || 'message')
     try {
+      if (value && value.kind) pushDanmuRecent(room, value)
       response.write(`data: ${JSON.stringify(value)}\n\n`)
     } catch {
       stop()
@@ -898,6 +899,18 @@ async function proxyStream(request, response, target) {
 }
 
 const hlsTokens = new Map()
+
+// 房间弹幕缓冲（供小窗轮询，不依赖 EventSource 流）
+const danmuBuffer = new Map()
+let danmuSeq = 0
+function pushDanmuRecent(room, payload) {
+  if (!room) return
+  danmuSeq += 1
+  const list = danmuBuffer.get(room) || []
+  list.push({ seq: danmuSeq, ...payload })
+  while (list.length > 200) list.shift()
+  danmuBuffer.set(room, list)
+}
 function hlsTokenId(value) {
   return createHash('sha1').update(value).digest('hex').slice(0, 16)
 }
@@ -1089,6 +1102,15 @@ async function route(request, response) {
     const body = await readJsonBody(request)
     const play = await fetchPlayInfo(body.id, body.qn)
     sendJson(response, 200, { ok: true, ...play })
+    return
+  }
+
+  if (pathname === `${ROUTE_PREFIX}/api/danmu/recent` && method === 'GET') {
+    const room = normalizeRoomId(url.searchParams.get('room') || '')
+    const since = Number(url.searchParams.get('since') || '0') || 0
+    const list = room ? danmuBuffer.get(room) || [] : []
+    const messages = list.filter((item) => item.seq > since)
+    sendJson(response, 200, { ok: true, messages, last: messages.length ? messages[messages.length - 1].seq : since })
     return
   }
 

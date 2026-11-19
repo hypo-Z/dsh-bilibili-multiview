@@ -1071,10 +1071,32 @@ window.__ModuleLoader__.load({
         const videoHost = () => video.parentElement
         video.addEventListener('enterpictureinpicture', onEnterPip)
         video.addEventListener('leavepictureinpicture', onLeavePip)
-        if (biliLiveSession.video && document.getElementById('bili-live-mini') && String(biliLiveSession.roomId) === String(room.id)) {
-          // 迷你窗口正在播这个房间：页面只显示占位，避免双流
-          setPhase('ready')
-          return undefined
+        if (biliLiveSession.video && String(biliLiveSession.roomId) === String(room.id)) {
+          // 已有播放中的会话：直接把视频接回页面，不再新建播放器（避免双流/回声）
+          const sessionVideo = biliLiveSession.video
+          const slot = videoRef.current
+          if (slot && slot.parentElement) {
+            try { slot.parentElement.replaceChild(sessionVideo, slot) } catch {}
+          }
+          videoRef.current = sessionVideo
+          playerRef.current = biliLiveSession.player
+          sessionVideo.style.width = '100%'
+          sessionVideo.style.height = 'auto'
+          sessionVideo.style.objectFit = 'contain'
+          try { sessionVideo.play().catch(() => {}) } catch {}
+          setPhase('playing')
+          return () => {
+            const mini = document.getElementById('bili-live-mini')
+            if (mini) {
+              try { mini.querySelector('#bili-mini-stage').appendChild(sessionVideo) } catch {}
+              biliLiveSession.video = sessionVideo
+              biliLiveSession.player = biliLiveSession.player || null
+              return
+            }
+            try { biliLiveSession.player?.destroy() } catch {}
+            biliLiveSession.video = null
+            biliLiveSession.player = null
+          }
         }
         const url = sources[Math.min(candidate, sources.length - 1)]
         if (play.format === 'hls') {
@@ -1102,9 +1124,10 @@ window.__ModuleLoader__.load({
             })
           return () => {
             disposed = true
-            const inMini = video && video.parentElement && video.parentElement.id === 'bili-mini-stage'
-            if (inMini) {
-              // 迷你窗口持有视频：保留 HLS 播放器，切页不中断
+            if (document.getElementById('bili-live-mini')) {
+              // 迷你窗口存在：视频移入迷你窗并保留 HLS 播放器，切页不中断
+              try { document.querySelector('#bili-mini-stage').appendChild(video) } catch {}
+              biliLiveSession.video = video
               biliLiveSession.player = hls
               try { video.play().catch(() => {}) } catch {}
               return
@@ -1182,8 +1205,10 @@ window.__ModuleLoader__.load({
             video.removeEventListener('enterpictureinpicture', onEnterPip)
             video.removeEventListener('leavepictureinpicture', onLeavePip)
           } catch {}
-          if (biliLiveSession.video === video && video.parentElement && video.parentElement.id === 'bili-mini-stage') {
-            // 迷你窗口持有视频：保留播放器，切页不中断
+          if (document.getElementById('bili-live-mini')) {
+            // 迷你窗口存在：视频移入迷你窗并保留播放器，切页不中断
+            try { document.querySelector('#bili-mini-stage').appendChild(video) } catch {}
+            biliLiveSession.video = video
             biliLiveSession.player = player
             playerRef.current = null
             try { video.play().catch(() => {}) } catch {}

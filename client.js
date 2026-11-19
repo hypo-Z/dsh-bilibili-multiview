@@ -310,6 +310,65 @@ window.__ModuleLoader__.load({
       return hlsPromise
     }
 
+    let miniActive = false
+    let miniPlayer = null
+    let miniHls = null
+
+    function miniEnsure() {
+      let box = document.getElementById('bili-live-mini')
+      if (box) return box
+      box = document.createElement('div')
+      box.id = 'bili-live-mini'
+      box.style.cssText = 'position:fixed;right:16px;top:80px;width:360px;z-index:2147483200;background:#111;border:1px solid rgba(255,255,255,.18);border-radius:10px;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,.5);color:#eee;font:12px/1.4 -apple-system,BlinkMacSystemFont,sans-serif'
+      box.innerHTML = '<div id="bili-mini-bar" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:#1b1b1f;cursor:move"><b id="bili-mini-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">直播</b><button id="bili-mini-close" style="border:0;background:transparent;color:#fff;cursor:pointer">✕</button></div><div id="bili-mini-stage" style="width:100%;aspect-ratio:16/9;background:#000"><video id="bili-mini-video" controls playsinline style="width:100%;height:100%;object-fit:cover"></video></div>'
+      document.body.appendChild(box)
+      const bar = box.querySelector('#bili-mini-bar')
+      let sx=0,sy=0,ox=0,oy=0,drag=false
+      bar.addEventListener('pointerdown',(e)=>{ if(e.target.closest('button'))return; drag=true; sx=e.clientX; sy=e.clientY; const r=box.getBoundingClientRect(); ox=r.left; oy=r.top })
+      bar.addEventListener('pointermove',(e)=>{ if(!drag)return; box.style.left=(ox+e.clientX-sx)+'px'; box.style.top=(oy+e.clientY-sy)+'px'; box.style.right='auto' })
+      bar.addEventListener('pointerup',()=>{drag=false})
+      box.querySelector('#bili-mini-close').addEventListener('click',()=>{ miniStop() })
+      return box
+    }
+
+    async function miniPlay(urls, format, title) {
+      const box = miniEnsure()
+      box.querySelector('#bili-mini-title').textContent = title || '直播'
+      const video = box.querySelector('#bili-mini-video')
+      miniStopPlayer()
+      miniActive = true
+      try {
+        if (format === 'hls') {
+          const Hls = await loadHls()
+          miniHls = new Hls({ lowLatencyMode: true })
+          miniHls.loadSource('/bilibili-multiview/api/hls-open?u=' + encodeURIComponent(urls[0]))
+          miniHls.attachMedia(video)
+          miniPlayer = null
+        } else {
+          const mpegts = await loadMpegts()
+          miniPlayer = mpegts.createPlayer({ type: 'flv', isLive: true, url: '/bilibili-multiview/api/stream?u=' + encodeURIComponent(urls[0]) }, { enableWorker: false, enableStashBuffer: false, liveBufferLatencyChasing: true })
+          miniPlayer.attachMediaElement(video)
+          miniPlayer.load()
+          miniHls = null
+        }
+      } catch (error) { console.error('[bili-mini]', error) }
+      try { await video.play() } catch {}
+    }
+
+    function miniStopPlayer() {
+      try { if (miniHls) miniHls.destroy() } catch {}
+      try { if (miniPlayer) miniPlayer.destroy() } catch {}
+      miniHls = null
+      miniPlayer = null
+    }
+
+    function miniStop() {
+      miniStopPlayer()
+      miniActive = false
+      document.getElementById('bili-live-mini')?.remove()
+      window.dispatchEvent(new CustomEvent('bili-live-mini-closed'))
+    }
+
     function loadMpegts() {
       if (window.mpegts) {
         if (window.mpegts.LoggingControl) window.mpegts.LoggingControl.enableAll = false
@@ -847,6 +906,12 @@ window.__ModuleLoader__.load({
       const [error, setError] = useState('')
       const [candidate, setCandidate] = useState(0)
       const [attempt, setAttempt] = useState(0)
+      useEffect(() => {
+        const onClosed = () => setAttempt((value) => value + 1)
+        window.addEventListener('bili-live-mini-closed', onClosed)
+        return () => window.removeEventListener('bili-live-mini-closed', onClosed)
+      }, [])
+
       const [needsTap, setNeedsTap] = useState(false)
       const [isFullscreen, setIsFullscreen] = useState(false)
       const messages = useDanmaku(room.id, room.liveStatus, danmakuOn)
@@ -923,6 +988,7 @@ window.__ModuleLoader__.load({
         if (!play || !sources.length) return undefined
         const video = videoRef.current
         if (!video) return undefined
+        if (miniActive) return undefined
         let disposed = false
         let player = null
         const url = sources[Math.min(candidate, sources.length - 1)]
@@ -1070,6 +1136,12 @@ window.__ModuleLoader__.load({
         document.addEventListener('fullscreenchange', onChange)
         return () => document.removeEventListener('fullscreenchange', onChange)
       }, [])
+
+      const openMini = () => {
+        if (!play || !Array.isArray(play.urls) || play.urls.length === 0) { alert('请先播放直播'); return }
+        try { if (videoRef.current) videoRef.current.pause() } catch {}
+        miniPlay(play.urls, play.format || 'flv', room.title || room.uname || '')
+      }
 
       const toggleFullscreen = () => {
         if (document.fullscreenElement) {
@@ -1221,6 +1293,17 @@ window.__ModuleLoader__.load({
                 'aria-label': t('fullscreen'),
               },
               h(Glyph, { name: 'fullscreen', size: 15 }),
+            ),
+            h(
+              'button',
+              {
+                className: 'bl-icon-btn',
+                type: 'button',
+                onClick: openMini,
+                title: '小窗播放',
+                'aria-label': '小窗播放',
+              },
+              h('span', { style: { fontSize: 13, lineHeight: 1 } }, '⧉'),
             ),
             h(
               'button',

@@ -1144,10 +1144,16 @@ window.__ModuleLoader__.load({
       useEffect(() => {
         const onClosed = () => {
           miniActive = false
-          if (pageMounted) {
-            // 页面还在（可能只是隐藏）：按页面自己的流程重新解锁声音并重建播放
-            setAudioUnlocked(true)
-            setNeedsTap(false)
+          if (!pageMounted) return
+          setAudioUnlocked(true)
+          setNeedsTap(false)
+          const video = videoRef.current
+          if (video && playerRef.current) {
+            // 页面播放器还在：直接恢复播放，不重建（避免回到“加载中”）
+            try { video.muted = false; video.volume = 1 } catch {}
+            try { video.play().catch(() => {}) } catch {}
+          } else {
+            // 播放器已被销毁：走页面自己的重建流程
             setAttempt((value) => value + 1)
           }
         }

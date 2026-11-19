@@ -202,8 +202,25 @@ function signWbi(parameters, rawKey) {
   return `${query}&w_rid=${wRid}`
 }
 
+async function expandShortLink(input) {
+  const text = String(input ?? '').trim()
+  const m = text.match(/b23\.tv\/([A-Za-z0-9]+)/i)
+  if (!m) return text
+  try {
+    const res = await fetch(`https://b23.tv/${m[1]}`, {
+      redirect: 'follow',
+      headers: {
+        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+      },
+    })
+    return res.url || text
+  } catch {
+    return text
+  }
+}
+
 async function resolveRoomId(roomId, cookie) {
-  const normalized = normalizeRoomId(roomId)
+  const normalized = normalizeRoomId(await expandShortLink(roomId))
   if (!normalized) throw new BiliError('请输入正确的直播间号或直播间链接')
   // Signed room_init resolves short ids to the real room id. If WBI signing is
   // unavailable, a numeric id still works for the following get_info call.

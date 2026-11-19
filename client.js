@@ -356,7 +356,9 @@ window.__ModuleLoader__.load({
       const video = pageVideoEl
       if (!video) return
       try { video.muted = false; video.volume = 1 } catch {}
-      try { const started = video.play(); if (started && started.catch) started.catch(() => {}) } catch {}
+      if (video.paused) {
+        try { const started = video.play(); if (started && started.catch) started.catch(() => {}) } catch {}
+      }
     }
 
     function miniEnsure() {
@@ -1395,7 +1397,7 @@ window.__ModuleLoader__.load({
         const video = videoRef.current
         if (!video) return
         pageVideoEl = video
-        if (miniActive) { video.muted = true; try { video.pause() } catch {} ; return }
+        if (miniActive) { video.muted = true; return }
         const fullVolume = focused || soloId === room.id
         video.volume = clamp((Number(volume) / 100) * (fullVolume ? 1 : DUCK_FACTOR), 0, 1)
         const muted = !audioUnlocked || (soloId !== null && soloId !== room.id)
@@ -1417,7 +1419,7 @@ window.__ModuleLoader__.load({
       const openMini = () => {
         if (!play || !Array.isArray(play.urls) || play.urls.length === 0) { alert('请先播放直播'); return }
         miniActive = true
-        try { if (videoRef.current) { videoRef.current.muted = true; videoRef.current.pause() } } catch {}
+        try { if (videoRef.current) videoRef.current.muted = true } catch {}
         miniPlay(room.id, play.urls, play.format || 'flv', room.title || room.uname || '')
       }
 

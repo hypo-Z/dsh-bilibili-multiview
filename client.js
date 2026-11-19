@@ -313,22 +313,81 @@ window.__ModuleLoader__.load({
     let miniActive = false
     let miniPlayer = null
     let miniHls = null
+    let miniLayout = null
+    let pageMounted = false
+    let miniCut = Number(localStorage.getItem('bili-mini-cut') || '0') || 0
+    let miniSize = Number(localStorage.getItem('bili-mini-size') || '1') || 1
+    const MINI_SIZES = [0.85, 1, 1.3, 1.6]
 
     function miniEnsure() {
       let box = document.getElementById('bili-live-mini')
       if (box) return box
       box = document.createElement('div')
       box.id = 'bili-live-mini'
-      box.style.cssText = 'position:fixed;right:16px;top:80px;width:360px;z-index:2147483200;background:#111;border:1px solid rgba(255,255,255,.18);border-radius:10px;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,.5);color:#eee;font:12px/1.4 -apple-system,BlinkMacSystemFont,sans-serif'
-      box.innerHTML = '<div id="bili-mini-bar" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:#1b1b1f;cursor:move"><b id="bili-mini-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">直播</b><button id="bili-mini-close" style="border:0;background:transparent;color:#fff;cursor:pointer">✕</button></div><div id="bili-mini-stage" style="width:100%;aspect-ratio:16/9;background:#000"><video id="bili-mini-video" controls playsinline style="width:100%;height:100%;object-fit:cover"></video></div>'
+      box.style.cssText = 'position:fixed;right:16px;top:80px;width:' + Math.round(360 * miniSize) + 'px;z-index:2147483200;background:#111;border:1px solid rgba(255,255,255,.18);border-radius:10px;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,.5);color:#eee;font:12px/1.4 -apple-system,BlinkMacSystemFont,sans-serif'
+      box.innerHTML = '<div id="bili-mini-bar" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:#1b1b1f;cursor:move;transition:opacity .25s"><b id="bili-mini-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">直播</b><button id="bili-mini-play" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">暂停</button><button id="bili-mini-close" style="border:0;background:transparent;color:#fff;cursor:pointer">✕</button></div><div id="bili-mini-stage" style="width:100%;aspect-ratio:16/9;background:#000;overflow:hidden"><video id="bili-mini-video" controls playsinline style="width:100%;height:100%;object-fit:cover"></video></div><div id="bili-mini-foot" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:#17171b;transition:opacity .25s"><input id="bili-mini-vol" type="range" min="0" max="100" value="100" style="flex:1"><button id="bili-mini-size" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">尺寸 ' + miniSize + 'x</button><button id="bili-mini-cut" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">裁边 ' + Math.round(miniCut * 100) + '%</button><button id="bili-mini-back" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">回页面</button></div>'
       document.body.appendChild(box)
       const bar = box.querySelector('#bili-mini-bar')
-      let sx=0,sy=0,ox=0,oy=0,drag=false
-      bar.addEventListener('pointerdown',(e)=>{ if(e.target.closest('button'))return; drag=true; sx=e.clientX; sy=e.clientY; const r=box.getBoundingClientRect(); ox=r.left; oy=r.top })
-      bar.addEventListener('pointermove',(e)=>{ if(!drag)return; box.style.left=(ox+e.clientX-sx)+'px'; box.style.top=(oy+e.clientY-sy)+'px'; box.style.right='auto' })
-      bar.addEventListener('pointerup',()=>{drag=false})
-      box.querySelector('#bili-mini-close').addEventListener('click',()=>{ miniStop() })
+      const foot = box.querySelector('#bili-mini-foot')
+      const chrome = [bar, foot]
+      let hideTimer = null
+      const showChrome = () => { chrome.forEach((el) => { el.style.opacity = '1'; el.style.pointerEvents = 'auto' }) }
+      const hideChrome = () => { chrome.forEach((el) => { el.style.opacity = '0'; el.style.pointerEvents = 'none' }) }
+      const scheduleHide = () => { showChrome(); if (hideTimer) clearTimeout(hideTimer); hideTimer = setTimeout(hideChrome, 3000) }
+      box.addEventListener('pointerenter', scheduleHide)
+      box.addEventListener('pointermove', scheduleHide)
+      scheduleHide()
+
+      let sx = 0, sy = 0, ox = 0, oy = 0, drag = false
+      bar.addEventListener('pointerdown', (e) => { if (e.target.closest('button')) return; drag = true; sx = e.clientX; sy = e.clientY; const r = box.getBoundingClientRect(); ox = r.left; oy = r.top })
+      bar.addEventListener('pointermove', (e) => { if (!drag) return; box.style.left = (ox + e.clientX - sx) + 'px'; box.style.top = (oy + e.clientY - sy) + 'px'; box.style.right = 'auto' })
+      bar.addEventListener('pointerup', () => { drag = false })
+
+      box.querySelector('#bili-mini-close').addEventListener('click', () => miniStop())
+      box.querySelector('#bili-mini-play').addEventListener('click', () => {
+        const v = box.querySelector('#bili-mini-video')
+        if (!v) return
+        if (v.paused) v.play().catch(() => {})
+        else v.pause()
+        box.querySelector('#bili-mini-play').textContent = v.paused ? '播放' : '暂停'
+        scheduleHide()
+      })
+      box.querySelector('#bili-mini-vol').addEventListener('input', (e) => {
+        const v = box.querySelector('#bili-mini-video')
+        if (v) v.volume = Number(e.target.value) / 100
+      })
+      box.querySelector('#bili-mini-size').addEventListener('click', () => {
+        const i = MINI_SIZES.indexOf(miniSize)
+        miniSize = MINI_SIZES[(i + 1) % MINI_SIZES.length]
+        try { localStorage.setItem('bili-mini-size', String(miniSize)) } catch {}
+        box.style.width = Math.round(360 * miniSize) + 'px'
+        box.querySelector('#bili-mini-size').textContent = '尺寸 ' + miniSize + 'x'
+        scheduleHide()
+      })
+      box.querySelector('#bili-mini-cut').addEventListener('click', () => {
+        miniCut = miniCut >= 0.3 ? 0 : Math.round((miniCut + 0.1) * 10) / 10
+        try { localStorage.setItem('bili-mini-cut', String(miniCut)) } catch {}
+        box.querySelector('#bili-mini-cut').textContent = '裁边 ' + Math.round(miniCut * 100) + '%'
+        miniFit(box)
+        scheduleHide()
+      })
+      box.querySelector('#bili-mini-back').addEventListener('click', () => {
+        miniStop()
+        if (!pageMounted) {
+          try { if (miniLayout && typeof miniLayout.selectPanel === 'function') miniLayout.selectPanel('bilibili-multiview') } catch {}
+        }
+      })
       return box
+    }
+
+    function miniFit(box) {
+      const video = box.querySelector('#bili-mini-video')
+      const stage = box.querySelector('#bili-mini-stage')
+      if (!video || !stage) return
+      if (video.videoWidth && video.videoHeight) {
+        const ratio = video.videoWidth / video.videoHeight
+        stage.style.aspectRatio = String(ratio / (1 - Math.min(0.4, Math.max(0, miniCut))))
+      }
     }
 
     async function miniPlay(urls, format, title) {
@@ -353,6 +412,8 @@ window.__ModuleLoader__.load({
         }
       } catch (error) { console.error('[bili-mini]', error) }
       try { await video.play() } catch {}
+      miniFit(box)
+      video.addEventListener('loadedmetadata', () => miniFit(box))
     }
 
     function miniStopPlayer() {
@@ -905,6 +966,11 @@ window.__ModuleLoader__.load({
       const [phase, setPhase] = useState('idle')
       const [error, setError] = useState('')
       const [candidate, setCandidate] = useState(0)
+      useEffect(() => {
+        pageMounted = true
+        return () => { pageMounted = false }
+      }, [])
+
       const [attempt, setAttempt] = useState(0)
       useEffect(() => {
         const onClosed = () => setAttempt((value) => value + 1)
@@ -3024,6 +3090,7 @@ window.__ModuleLoader__.load({
     }
 
     function apply(ctx) {
+      try { miniLayout = ctx.layout || (typeof ctx.get === 'function' ? ctx.get('layout') : null) || null } catch {}
       ctx.effect(
         () =>
           ctx.locale.register(NS, {

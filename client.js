@@ -1178,8 +1178,9 @@ window.__ModuleLoader__.load({
           const v = videoRef.current
           if (v && !v.paused && v.readyState >= 2) {
             setPhase((value) => (value === 'playing' ? value : 'playing'))
+            setNeedsTap(false)
           }
-        }, 1000)
+        }, 500)
         return () => clearInterval(timer)
       }, [])
       const [attempt, setAttempt] = useState(0)

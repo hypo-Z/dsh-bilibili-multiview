@@ -412,6 +412,7 @@ window.__ModuleLoader__.load({
 
     function miniPushDanmu(rawText, kind) {
       if (!miniDanmuOn || !miniActive) return
+      miniEnsureStyle()
       const layer = document.getElementById('bili-mini-danmu')
       if (!layer) return
       const text = String(rawText || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 120)

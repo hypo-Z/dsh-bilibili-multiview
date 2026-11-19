@@ -294,6 +294,22 @@ window.__ModuleLoader__.load({
     }
 
     let mpegtsPromise = null
+    let hlsPromise = null
+    function loadHls() {
+      if (window.Hls) return Promise.resolve(window.Hls)
+      if (hlsPromise) return hlsPromise
+      hlsPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.dataset.bilibiliLiveVendor = 'hls'
+        script.async = true
+        script.src = '/bilibili-multiview/vendor/hls.js'
+        script.addEventListener('load', () => { window.Hls ? resolve(window.Hls) : reject(new Error('Hls 未加载')) })
+        script.addEventListener('error', () => reject(new Error('Hls 加载失败')))
+        document.head.appendChild(script)
+      })
+      return hlsPromise
+    }
+
     function loadMpegts() {
       if (window.mpegts) {
         if (window.mpegts.LoggingControl) window.mpegts.LoggingControl.enableAll = false
@@ -910,6 +926,33 @@ window.__ModuleLoader__.load({
         let disposed = false
         let player = null
         const url = sources[Math.min(candidate, sources.length - 1)]
+        if (play.format === 'hls') {
+          let hls = null
+          loadHls()
+            .then((Hls) => {
+              if (disposed) return
+              if (typeof Hls.isSupported === 'function' && !Hls.isSupported()) throw new Error('当前浏览器不支持 HLS 播放')
+              hls = new Hls({ lowLatencyMode: true })
+              hls.on(Hls.Events.MANIFEST_PARSED, () => { if (!disposed) { setError(''); setPhase('ready') } })
+              hls.on(Hls.Events.ERROR, (_event, data) => {
+                if (disposed || !data || !data.fatal) return
+                setError('HLS 播放失败：' + (data.details || data.type || ''))
+                setPhase('error')
+              })
+              hls.loadSource('/bilibili-multiview/api/hls-open?u=' + encodeURIComponent(play.urls[0]))
+              hls.attachMedia(video)
+              video.addEventListener('playing', () => { if (!disposed) setPhase('ready') }, { once: true })
+            })
+            .catch(() => {
+              if (disposed) return
+              setError(tRef.current('play_error'))
+              setPhase('error')
+            })
+          return () => {
+            disposed = true
+            if (hls) { try { hls.destroy() } catch {} }
+          }
+        }
 
         loadMpegts()
           .then((mpegts) => {

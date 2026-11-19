@@ -941,8 +941,15 @@ window.__ModuleLoader__.load({
               if (disposed) return
               if (typeof Hls.isSupported === 'function' && !Hls.isSupported()) throw new Error('当前浏览器不支持 HLS 播放')
               hls = new Hls({ lowLatencyMode: true })
+              hls.on(Hls.Events.MANIFEST_PARSED, () => { if (!disposed) { setError(''); setPhase('ready') } })
+              hls.on(Hls.Events.ERROR, (_event, data) => {
+                if (disposed || !data || !data.fatal) return
+                setError('HLS 播放失败：' + (data.details || data.type || ''))
+                setPhase('error')
+              })
               hls.loadSource('/bilibili-multiview/api/hls?u=' + encodeURIComponent(play.urls[0]))
               hls.attachMedia(video)
+              video.addEventListener('playing', () => { if (!disposed) setPhase('ready') }, { once: true })
             })
             .catch(() => {
               if (disposed) return

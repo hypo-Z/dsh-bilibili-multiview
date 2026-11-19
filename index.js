@@ -897,6 +897,20 @@ async function proxyStream(request, response, target) {
   }
 }
 
+const hlsTokens = new Map()
+function hlsTokenId(value) {
+  return createHash('sha1').update(value).digest('hex').slice(0, 16)
+}
+function hlsTokenUrl(abs) {
+  const id = hlsTokenId(abs)
+  hlsTokens.set(id, abs)
+  if (hlsTokens.size > 2000) {
+    const first = hlsTokens.keys().next().value
+    hlsTokens.delete(first)
+  }
+  return id
+}
+
 async function route(request, response) {
   const url = new URL(request.url || '/', 'http://127.0.0.1')
   const pathname = url.pathname
@@ -914,6 +928,48 @@ async function route(request, response) {
     return
   }
 
+  if ((pathname.startsWith(`${ROUTE_PREFIX}/api/hls/`) || pathname.startsWith(`${ROUTE_PREFIX}/api/seg/`)) && method === 'GET') {
+    const isPlaylist = pathname.startsWith(`${ROUTE_PREFIX}/api/hls/`)
+    const id = pathname.split('/').pop()
+    const target = hlsTokens.get(id)
+    if (!target) return response.writeHead(404, { 'content-type': 'text/plain' }).end('expired')
+    const headers = { 'User-Agent': USER_AGENT, referer: 'https://live.bilibili.com/' }
+    if (!isPlaylist && request.headers.range) headers.range = request.headers.range
+    const r = await fetch(target, { headers })
+    if (isPlaylist) {
+      const text = await r.text()
+      const out = text.split('\n').map((line) => {
+        if (line.includes('URI="')) {
+          return line.replace(/URI="([^"]+)"/g, (m, u) => {
+            try { return 'URI="' + `${ROUTE_PREFIX}/api/seg/` + hlsTokenUrl(new URL(u, target).toString()) + '"' } catch { return m }
+          })
+        }
+        const t = line.trim()
+        if (!t || t.startsWith('#')) return line
+        try {
+          const abs = new URL(t, target).toString()
+          const kind = /\.m3u8(\?|$)/i.test(abs) ? 'hls' : 'seg'
+          return `${ROUTE_PREFIX}/api/${kind}/` + hlsTokenUrl(abs)
+        } catch { return line }
+      }).join('\n')
+      response.writeHead(200, { 'content-type': 'application/vnd.apple.mpegurl; charset=utf-8', 'cache-control': 'no-store', 'access-control-allow-origin': '*' })
+      return response.end(out)
+    }
+    const buf = Buffer.from(await r.arrayBuffer())
+    const out = {
+      'content-type': r.headers.get('content-type') || 'video/mp4',
+      'cache-control': 'no-store',
+      'access-control-allow-origin': '*',
+      'accept-ranges': 'bytes',
+    }
+    for (const key of ['content-range', 'content-length']) {
+      const value = r.headers.get(key)
+      if (value) out[key] = value
+    }
+    response.writeHead(r.status, out)
+    return response.end(buf)
+  }
+
   if (pathname === `${ROUTE_PREFIX}/api/hls` && method === 'GET') {
     const target = url.searchParams.get('u')
     if (!target) throw new BiliError('缺少 HLS 地址')
@@ -921,8 +977,8 @@ async function route(request, response) {
     const text = await r.text()
     const proxy = (u) => {
       const abs = new URL(u, target).toString()
-      const kind = /\.m3u8(\?|$)/i.test(abs) ? 'hls' : 'hls-seg'
-      return `${ROUTE_PREFIX}/api/${kind}?u=` + encodeURIComponent(abs)
+      const kind = /\.m3u8(\?|$)/i.test(abs) ? 'hls' : 'seg'
+      return `${ROUTE_PREFIX}/api/${kind}/` + hlsTokenUrl(abs)
     }
     const out = text.split('\n').map((line) => {
       if (line.includes('URI="')) {

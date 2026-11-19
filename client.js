@@ -118,7 +118,19 @@ window.__ModuleLoader__.load({
       const box = biliMiniEnsure()
       const stage = box.querySelector('#bili-mini-stage')
       stage.appendChild(video)
-      video.style.width = '100%'; video.style.height = '100%'; video.style.objectFit = 'contain'
+      video.style.width = '100%'
+      video.style.height = '100%'
+      // 只显示视频画面：铺满并裁掉多余黑边；舞台比例跟随视频实际比例
+      video.style.objectFit = 'cover'
+      const applyAspect = () => {
+        if (video.videoWidth && video.videoHeight) {
+          stage.style.aspectRatio = video.videoWidth + ' / ' + video.videoHeight
+          stage.style.height = 'auto'
+        }
+      }
+      applyAspect()
+      video.addEventListener('loadedmetadata', applyAspect)
+      video.addEventListener('resize', applyAspect)
       biliLiveSession.video = video
       biliLiveSession.player = player || null
       biliLiveSession.roomId = roomId

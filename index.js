@@ -970,6 +970,15 @@ async function route(request, response) {
     return response.end(buf)
   }
 
+  if (pathname === `${ROUTE_PREFIX}/api/hls-open` && method === 'GET') {
+    const target = url.searchParams.get('u')
+    if (!target) throw new BiliError('缺少 HLS 地址')
+    const id = hlsTokenUrl(target)
+    response.writeHead(302, { location: `${ROUTE_PREFIX}/api/hls/${id}`, 'cache-control': 'no-store' })
+    response.end()
+    return
+  }
+
   if (pathname === `${ROUTE_PREFIX}/api/hls` && method === 'GET') {
     const target = url.searchParams.get('u')
     if (!target) throw new BiliError('缺少 HLS 地址')

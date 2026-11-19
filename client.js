@@ -23,6 +23,7 @@ window.__ModuleLoader__.load({
     const biliLiveSession = { video: null, player: null, roomId: null, title: '' }
     let biliPageMounted = false
     let biliLayout = null
+    let biliMiniCut = Number(localStorage.getItem('bili-mini-cut') || '0') || 0
 
     function biliMiniEnsure() {
       let box = document.getElementById('bili-live-mini')
@@ -30,7 +31,7 @@ window.__ModuleLoader__.load({
       box = document.createElement('div')
       box.id = 'bili-live-mini'
       box.style.cssText = 'position:fixed;right:16px;top:80px;width:360px;z-index:2147483200;background:#111;border:1px solid rgba(255,255,255,.18);border-radius:10px;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,.5);color:#eee;font:12px/1.4 -apple-system,BlinkMacSystemFont,sans-serif'
-      box.innerHTML = '<div id="bili-mini-bar" class="bili-mini-chrome" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:#1b1b1f;cursor:move;transition:opacity .25s"><b id="bili-mini-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">直播</b><button id="bili-mini-play" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">暂停</button><button id="bili-mini-close" style="border:0;background:transparent;color:#fff;cursor:pointer">✕</button></div><div id="bili-mini-stage" style="width:100%;aspect-ratio:16/9;background:#000"></div><div id="bili-mini-foot" class="bili-mini-chrome" style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#17171b;transition:opacity .25s"><input id="bili-mini-vol" type="range" min="0" max="100" value="100" style="flex:1"><button id="bili-mini-size" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">尺寸 1x</button><button id="bili-mini-expand" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">回页面</button></div>'
+      box.innerHTML = '<div id="bili-mini-bar" class="bili-mini-chrome" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:#1b1b1f;cursor:move;transition:opacity .25s"><b id="bili-mini-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">直播</b><button id="bili-mini-play" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">暂停</button><button id="bili-mini-close" style="border:0;background:transparent;color:#fff;cursor:pointer">✕</button></div><div id="bili-mini-stage" style="width:100%;aspect-ratio:16/9;background:#000"></div><div id="bili-mini-foot" class="bili-mini-chrome" style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#17171b;transition:opacity .25s"><input id="bili-mini-vol" type="range" min="0" max="100" value="100" style="flex:1"><button id="bili-mini-cut" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">裁边 0%</button><button id="bili-mini-size" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">尺寸 1x</button><button id="bili-mini-expand" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">回页面</button></div>'
       document.body.appendChild(box)
       const foot = box.querySelector('#bili-mini-foot')
       const chrome = [box.querySelector('#bili-mini-bar'), foot]
@@ -60,6 +61,18 @@ window.__ModuleLoader__.load({
         try { localStorage.setItem('bili-mini-size', String(scale)) } catch {}
       }
       applySize()
+      const cutBtn = box.querySelector('#bili-mini-cut')
+      if (cutBtn) {
+        cutBtn.textContent = '裁边 ' + Math.round(biliMiniCut * 100) + '%'
+        cutBtn.addEventListener('click', () => {
+          biliMiniCut = biliMiniCut >= 0.3 ? 0 : Math.round((biliMiniCut + 0.1) * 10) / 10
+          try { localStorage.setItem('bili-mini-cut', String(biliMiniCut)) } catch {}
+          cutBtn.textContent = '裁边 ' + Math.round(biliMiniCut * 100) + '%'
+          const v = box.querySelector('#bili-mini-stage video')
+          if (v) biliMiniStyleVideo(v)
+          scheduleHide()
+        })
+      }
       box.querySelector('#bili-mini-size').addEventListener('click', () => {
         sizeIndex = (sizeIndex + 1) % SIZES.length
         applySize()
@@ -117,7 +130,10 @@ window.__ModuleLoader__.load({
       video.style.objectFit = 'cover'
       const applyAspect = () => {
         if (video.videoWidth && video.videoHeight) {
-          stage.style.aspectRatio = video.videoWidth + ' / ' + video.videoHeight
+          const ratio = video.videoWidth / video.videoHeight
+          const cut = Math.min(0.4, Math.max(0, biliMiniCut))
+          // cut>0 时把画面区域变矮，cover 会裁掉上下黑边
+          stage.style.aspectRatio = String(ratio / (1 - cut))
           stage.style.height = 'auto'
         }
       }

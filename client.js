@@ -1074,6 +1074,8 @@ window.__ModuleLoader__.load({
               hls.loadSource('/bilibili-multiview/api/hls-open?u=' + encodeURIComponent(play.urls[0]))
               hls.attachMedia(video)
               video.addEventListener('playing', () => { if (!disposed) setPhase('ready') }, { once: true })
+              video.addEventListener('canplay', () => { if (!disposed) setPhase('ready') }, { once: true })
+              setTimeout(() => { if (!disposed) { setPhase((value) => (value === 'playing' ? value : 'ready')) } }, 800)
             })
             .catch(() => {
               if (disposed) return
@@ -1185,6 +1187,7 @@ window.__ModuleLoader__.load({
       useEffect(() => {
         const video = videoRef.current
         if (!video) return
+        if (miniActive) { video.muted = true; try { video.pause() } catch {} ; return }
         const fullVolume = focused || soloId === room.id
         video.volume = clamp((Number(volume) / 100) * (fullVolume ? 1 : DUCK_FACTOR), 0, 1)
         const muted = !audioUnlocked || (soloId !== null && soloId !== room.id)
@@ -1205,7 +1208,8 @@ window.__ModuleLoader__.load({
 
       const openMini = () => {
         if (!play || !Array.isArray(play.urls) || play.urls.length === 0) { alert('请先播放直播'); return }
-        try { if (videoRef.current) videoRef.current.pause() } catch {}
+        miniActive = true
+        try { if (videoRef.current) { videoRef.current.muted = true; videoRef.current.pause() } } catch {}
         miniPlay(play.urls, play.format || 'flv', room.title || room.uname || '')
       }
 

@@ -490,48 +490,22 @@ window.__ModuleLoader__.load({
 
     function miniStartDanmu(roomId) {
       miniStopDanmu()
-      if (!miniDanmuOn) return
+      if (!miniDanmuOn || !roomId) return
       miniEnsureStyle()
-      const layer = document.getElementById('bili-mini-danmu')
-      if (!layer) return
-      const controller = new AbortController()
-      miniDanmuAbort = controller
-      const pump = async () => {
-        try {
-          const response = await fetch('/bilibili-multiview/api/danmu/events?room=' + encodeURIComponent(roomId), {
-            signal: controller.signal,
-            headers: { accept: 'text/event-stream' },
-            cache: 'no-store',
-          })
-          if (!response.ok || !response.body) throw new Error('sse ' + response.status)
-          const reader = response.body.getReader()
-          const decoder = new TextDecoder()
-          let buffer = ''
-          for (;;) {
-            const { done, value } = await reader.read()
-            if (done) break
-            buffer += decoder.decode(value, { stream: true })
-            let index = buffer.indexOf('\n\n')
-            while (index >= 0) {
-              const chunk = buffer.slice(0, index)
-              buffer = buffer.slice(index + 2)
-              for (const line of chunk.split('\n')) {
-                if (!line.startsWith('data:')) continue
-                try {
-                  const payload = JSON.parse(line.slice(5).trim())
-                  if (payload && typeof payload.text === 'string') miniPushDanmu(payload.text, payload.kind)
-                } catch {}
-              }
-              index = buffer.indexOf('\n\n')
-            }
-          }
-        } catch (error) {
-          if (!controller.signal.aborted) {
-            setTimeout(() => { if (miniDanmuOn && miniActive) miniStartDanmu(miniRoomId) }, 3000)
-          }
-        }
+      if (!document.getElementById('bili-mini-danmu')) return
+      try { miniDanmuSource = new EventSource('/bilibili-multiview/api/danmu/events?room=' + encodeURIComponent(roomId)) } catch { miniDanmuSource = null; return }
+      const reconnect = () => {
+        miniDanmuSource = null
+        setTimeout(() => { if (miniDanmuOn && miniActive && !miniDanmuSource) miniStartDanmu(miniRoomId) }, 2000)
       }
-      pump()
+      miniDanmuSource.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data)
+          if (payload && typeof payload.text === 'string') miniPushDanmu(payload.text, payload.kind)
+        } catch {}
+      }
+      miniDanmuSource.onclose = reconnect
+      miniDanmuSource.onerror = reconnect
     }
 
     function miniFit(box) {

@@ -317,7 +317,6 @@ window.__ModuleLoader__.load({
     let pageMounted = false
     let miniCut = Number(localStorage.getItem('bili-mini-cut') || '0') || 0
     let miniRoomId = ''
-    let pageVideoEl = null
     let miniSize = Number(localStorage.getItem('bili-mini-size') || '1') || 1
     const MINI_SIZES = [0.85, 1, 1.3, 1.6]
 
@@ -1109,12 +1108,9 @@ window.__ModuleLoader__.load({
       useEffect(() => {
         const onClosed = () => {
           miniActive = false
-          setAudioUnlocked(true)
-          setNeedsTap(false)
-          const target = videoRef.current || pageVideoEl
-          if (target) {
-            try { target.muted = false; target.volume = 1 } catch {}
-            try { target.play().catch(() => {}) } catch {}
+          if (pageMounted && videoRef.current) {
+            try { videoRef.current.muted = false; videoRef.current.volume = 1 } catch {}
+            try { videoRef.current.play().catch(() => {}) } catch {}
           }
           setAttempt((value) => value + 1)
         }
@@ -1199,7 +1195,6 @@ window.__ModuleLoader__.load({
         const video = videoRef.current
         if (!video) return undefined
         if (miniActive) return undefined
-        pageVideoEl = video
         let disposed = false
         let player = null
         const url = sources[Math.min(candidate, sources.length - 1)]

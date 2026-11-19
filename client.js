@@ -93,23 +93,17 @@ window.__ModuleLoader__.load({
         if (v) v.volume = Number(e.target.value) / 100
       })
       box.querySelector('#bili-mini-close').addEventListener('click', () => {
-        try { biliLiveSession.player?.destroy() } catch {}
-        try { biliLiveSession.video?.remove() } catch {}
-        biliLiveSession.video = null; biliLiveSession.player = null
-        box.remove()
+        window.dispatchEvent(new CustomEvent('bili-live-mini-closed'))
+        biliMiniStop()
       })
       box.querySelector('#bili-mini-expand').addEventListener('click', () => {
+        window.dispatchEvent(new CustomEvent('bili-live-expand-mini'))
+        biliMiniStop()
         if (!biliPageMounted) {
           try {
             if (biliLayout && typeof biliLayout.selectPanel === 'function') biliLayout.selectPanel('bilibili-multiview')
           } catch {}
-          setTimeout(() => {
-            if (biliPageMounted) window.dispatchEvent(new CustomEvent('bili-live-expand-mini'))
-            else alert('请先切回「bilibili 直播」页面，再点「回页面」')
-          }, 500)
-          return
         }
-        window.dispatchEvent(new CustomEvent('bili-live-expand-mini'))
       })
       return box
     }
@@ -133,6 +127,60 @@ window.__ModuleLoader__.load({
         video.addEventListener('loadedmetadata', applyAspect)
         video.addEventListener('resize', applyAspect)
       }
+    }
+
+    async function biliMiniPlay(roomId, urls, format, title) {
+      const box = biliMiniEnsure()
+      const stage = box.querySelector('#bili-mini-stage')
+      if (biliLiveSession.player) {
+        try { biliLiveSession.player.destroy() } catch {}
+        biliLiveSession.player = null
+      }
+      let video = stage.querySelector('video')
+      if (!video) {
+        video = document.createElement('video')
+        video.controls = true
+        video.autoplay = true
+        video.playsInline = true
+        stage.appendChild(video)
+      }
+      biliMiniStyleVideo(video)
+      const url = urls[0]
+      try {
+        if (format === 'hls') {
+          const Hls = await loadHls()
+          const hls = new Hls({ lowLatencyMode: true })
+          hls.loadSource('/bilibili-multiview/api/hls-open?u=' + encodeURIComponent(url))
+          hls.attachMedia(video)
+          biliLiveSession.player = hls
+        } else {
+          const mpegts = await loadMpegts()
+          const player = mpegts.createPlayer(
+            { type: 'flv', isLive: true, url: '/bilibili-multiview/api/stream?u=' + encodeURIComponent(url), hasAudio: true, hasVideo: true },
+            { enableWorker: false, enableStashBuffer: false, lazyLoad: false, liveBufferLatencyChasing: true },
+          )
+          player.attachMediaElement(video)
+          player.load()
+          biliLiveSession.player = player
+        }
+      } catch (error) {
+        console.error('[bili-mini] play failed', error)
+      }
+      biliLiveSession.video = video
+      biliLiveSession.roomId = roomId
+      biliLiveSession.title = title || ''
+      box.querySelector('#bili-mini-title').textContent = title || ('房间 ' + roomId)
+      try { await video.play() } catch {}
+      return video
+    }
+
+    function biliMiniStop() {
+      try { biliLiveSession.player?.destroy?.() } catch {}
+      try { document.querySelector('#bili-mini-stage video')?.remove() } catch {}
+      biliLiveSession.player = null
+      biliLiveSession.video = null
+      const box = document.getElementById('bili-live-mini')
+      if (box) box.remove()
     }
 
     function biliMiniShow(video, roomId, title, player) {

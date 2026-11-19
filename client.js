@@ -93,10 +93,8 @@ window.__ModuleLoader__.load({
         if (v) v.volume = Number(e.target.value) / 100
       })
       box.querySelector('#bili-mini-close').addEventListener('click', () => {
-        try { biliLiveSession.player?.destroy() } catch {}
-        try { biliLiveSession.video?.remove() } catch {}
-        biliLiveSession.video = null; biliLiveSession.player = null
-        box.remove()
+        window.dispatchEvent(new CustomEvent('bili-live-mini-closed'))
+        biliMiniStop()
       })
       box.querySelector('#bili-mini-expand').addEventListener('click', () => {
         if (!biliPageMounted) {
@@ -1344,7 +1342,7 @@ window.__ModuleLoader__.load({
       }
 
       useEffect(() => {
-        const back = () => setPageMode('page')
+        const back = () => { biliMiniStop(); setPageMode('page') }
         window.addEventListener('bili-live-expand-mini', back)
         window.addEventListener('bili-live-mini-closed', back)
         return () => {

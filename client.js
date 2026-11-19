@@ -320,6 +320,36 @@ window.__ModuleLoader__.load({
     let miniSize = Number(localStorage.getItem('bili-mini-size') || '1') || 1
     const MINI_SIZES = [0.85, 1, 1.3, 1.6]
 
+    function openMiniDmSettings(box) {
+      let panel = document.getElementById('bili-mini-dm-set')
+      if (panel) { panel.remove(); return }
+      panel = document.createElement('div')
+      panel.id = 'bili-mini-dm-set'
+      panel.style.cssText = 'position:fixed;width:230px;background:rgba(20,20,24,.97);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:10px;color:#ddd;font:12px/1.7 -apple-system,sans-serif;z-index:2147483300'
+      panel.innerHTML = '<div>速度 <b id="dmv-speed"></b></div><input id="dmi-speed" type="range" min="0.5" max="2" step="0.1" style="width:100%"><div>显示区域 <b id="dmv-area"></b></div><input id="dmi-area" type="range" min="20" max="100" step="5" style="width:100%"><div>不透明度 <b id="dmv-op"></b></div><input id="dmi-op" type="range" min="0.2" max="1" step="0.1" style="width:100%"><div>字体大小 <b id="dmv-size"></b></div><input id="dmi-size" type="range" min="12" max="28" step="1" style="width:100%">'
+      const r = box.getBoundingClientRect()
+      panel.style.top = Math.max(8, r.top + 44) + 'px'
+      panel.style.left = Math.max(8, r.right - 240) + 'px'
+      document.body.appendChild(panel)
+      const labels = () => {
+        panel.querySelector('#dmv-speed').textContent = Number(miniDmCfg.speed).toFixed(1) + 'x'
+        panel.querySelector('#dmv-area').textContent = miniDmCfg.area + '%'
+        panel.querySelector('#dmv-op').textContent = Math.round(Number(miniDmCfg.opacity) * 100) + '%'
+        panel.querySelector('#dmv-size').textContent = miniDmCfg.size + 'px'
+      }
+      const wire = (id, key) => {
+        const input = panel.querySelector('#dmi-' + id)
+        input.value = miniDmCfg[key]
+        input.addEventListener('input', () => {
+          miniDmCfg[key] = Number(input.value)
+          miniSaveDmCfg()
+          labels()
+        })
+      }
+      wire('speed', 'speed'); wire('area', 'area'); wire('op', 'opacity'); wire('size', 'size')
+      labels()
+    }
+
     function miniEnsure() {
       let box = document.getElementById('bili-live-mini')
       if (box) return box
@@ -367,37 +397,9 @@ window.__ModuleLoader__.load({
         const v = box.querySelector('#bili-mini-video')
         if (v) v.volume = Number(e.target.value) / 100
       })
-      const dmSet = box.querySelector('#bili-mini-dmset')
-      if (dmSet) dmSet.addEventListener('click', () => {
-        let panel = document.getElementById('bili-mini-dm-set')
-        if (panel) { panel.remove(); scheduleHide(); return }
-        panel = document.createElement('div')
-        panel.id = 'bili-mini-dm-set'
-        panel.style.cssText = 'position:absolute;right:8px;top:44px;z-index:5;width:220px;background:rgba(20,20,24,.96);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:10px;color:#ddd;font:12px/1.7 -apple-system,sans-serif'
-        panel.innerHTML = '<div>速度 <b id="dmv-speed"></b></div><input id="dmi-speed" type="range" min="0.5" max="2" step="0.1" style="width:100%"><div>显示区域 <b id="dmv-area"></b></div><input id="dmi-area" type="range" min="20" max="100" step="5" style="width:100%"><div>不透明度 <b id="dmv-op"></b></div><input id="dmi-op" type="range" min="0.2" max="1" step="0.1" style="width:100%"><div>字体大小 <b id="dmv-size"></b></div><input id="dmi-size" type="range" min="12" max="28" step="1" style="width:100%">'
-        const r = box.getBoundingClientRect()
-        panel.style.position = 'fixed'
-        panel.style.right = 'auto'
-        panel.style.top = (r.top + 44) + 'px'
-        panel.style.left = Math.max(8, r.right - 230) + 'px'
-        document.body.appendChild(panel)
-        const labels = () => {
-          panel.querySelector('#dmv-speed').textContent = miniDmCfg.speed.toFixed(1) + 'x'
-          panel.querySelector('#dmv-area').textContent = miniDmCfg.area + '%'
-          panel.querySelector('#dmv-op').textContent = Math.round(miniDmCfg.opacity * 100) + '%'
-          panel.querySelector('#dmv-size').textContent = miniDmCfg.size + 'px'
-        }
-        const wire = (id, key) => {
-          const input = panel.querySelector('#dmi-' + id)
-          input.value = miniDmCfg[key]
-          input.addEventListener('input', () => {
-            miniDmCfg[key] = Number(input.value)
-            miniSaveDmCfg()
-            labels()
-          })
-        }
-        wire('speed', 'speed'); wire('area', 'area'); wire('op', 'opacity'); wire('size', 'size')
-        labels()
+      box.addEventListener('click', (event) => {
+        if (!event.target.closest('#bili-mini-dmset')) return
+        openMiniDmSettings(box)
         scheduleHide()
       })
 
@@ -3266,7 +3268,7 @@ window.__ModuleLoader__.load({
     }
 
     return {
-      inject: ['slots', 'locale'],
+      inject: ['slots', 'locale', 'layout'],
       apply,
     }
   },

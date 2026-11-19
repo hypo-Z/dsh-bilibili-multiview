@@ -436,6 +436,7 @@ window.__ModuleLoader__.load({
 
     let miniDanmuSource = null
     let miniDanmuOn = localStorage.getItem('bili-mini-danmaku') !== '0'
+    let miniDmWatch = null
     let miniDmCfg = (() => { try { const v = JSON.parse(localStorage.getItem('bili-mini-dm-cfg') || '{}'); return { speed: Number(v.speed) || 1, area: Number(v.area) || 70, opacity: v.opacity === undefined ? 1 : Number(v.opacity), size: Number(v.size) || 16 } } catch { return { speed: 1, area: 70, opacity: 1, size: 16 } } })()
     function miniSaveDmCfg() { try { localStorage.setItem('bili-mini-dm-cfg', JSON.stringify(miniDmCfg)) } catch {} }
 
@@ -499,6 +500,10 @@ window.__ModuleLoader__.load({
         if (!payload || typeof payload.text !== 'string') return
         miniPushDanmu(payload.text, payload.kind)
       }
+      miniDanmuSource.onclose = () => {
+        miniDanmuSource = null
+        if (miniDanmuOn && miniActive) setTimeout(() => { if (miniDanmuOn && miniActive && !miniDanmuSource) miniStartDanmu(miniRoomId) }, 2000)
+      }
       miniDanmuSource.onerror = () => {
         try { miniDanmuSource.close() } catch {}
         miniDanmuSource = null
@@ -541,6 +546,11 @@ window.__ModuleLoader__.load({
       miniFit(box)
       miniRoomId = roomId
       miniStartDanmu(roomId)
+      if (miniDmWatch) clearInterval(miniDmWatch)
+      miniDmWatch = setInterval(() => {
+        if (!miniActive || !miniDanmuOn) return
+        if (!miniDanmuSource || miniDanmuSource.readyState === 2) miniStartDanmu(miniRoomId)
+      }, 4000)
       video.addEventListener('loadedmetadata', () => miniFit(box))
     }
 
@@ -554,6 +564,7 @@ window.__ModuleLoader__.load({
     function miniStop() {
       miniStopPlayer()
       miniStopDanmu()
+      if (miniDmWatch) { clearInterval(miniDmWatch); miniDmWatch = null }
       document.getElementById('bili-mini-dm-set')?.remove()
       miniActive = false
       document.getElementById('bili-live-mini')?.remove()

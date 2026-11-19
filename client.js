@@ -968,6 +968,10 @@ window.__ModuleLoader__.load({
       const [candidate, setCandidate] = useState(0)
       useEffect(() => {
         pageMounted = true
+        // 回到直播页时，把仍在播放的小窗收掉，交给页面播放（避免页面只出声不出画）
+        if (miniActive || document.getElementById('bili-live-mini')) {
+          try { miniStop() } catch {}
+        }
         return () => { pageMounted = false }
       }, [])
 

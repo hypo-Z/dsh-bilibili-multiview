@@ -402,6 +402,11 @@ window.__ModuleLoader__.load({
         openMiniDmSettings(box)
         scheduleHide()
       })
+      // 双击标题栏也可以打开弹幕设置（按钮异常时的备用入口）
+      box.addEventListener('dblclick', (event) => {
+        if (event.target.closest('button')) return
+        openMiniDmSettings(box)
+      })
 
       box.querySelector('#bili-mini-size').addEventListener('click', () => {
         const i = MINI_SIZES.indexOf(miniSize)

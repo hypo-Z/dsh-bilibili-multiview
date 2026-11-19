@@ -1149,9 +1149,10 @@ window.__ModuleLoader__.load({
           setNeedsTap(false)
           const video = videoRef.current
           if (video && playerRef.current) {
-            // 页面播放器还在：直接恢复播放，不重建（避免回到“加载中”）
+            // 页面播放器还在：直接恢复播放，并同步 UI 状态隐藏“加载中”遮罩
             try { video.muted = false; video.volume = 1 } catch {}
             try { video.play().catch(() => {}) } catch {}
+            setPhase('playing')
           } else {
             // 播放器已被销毁：走页面自己的重建流程
             setAttempt((value) => value + 1)

@@ -1111,10 +1111,7 @@ window.__ModuleLoader__.load({
       const [candidate, setCandidate] = useState(0)
       useEffect(() => {
         pageMounted = true
-        // 回到直播页时，把仍在播放的小窗收掉，交给页面播放（避免页面只出声不出画）
-        if (miniActive || document.getElementById('bili-live-mini')) {
-          try { miniStop() } catch {}
-        }
+        // 回到直播页时保留小窗；页面播放器在小窗存在时不启动，避免双路声音
         return () => {
           pageMounted = false
           // 页面卸载后，让小窗的弹幕连接在旧会话结束后重新建立

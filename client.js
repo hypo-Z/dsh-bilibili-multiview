@@ -22,6 +22,7 @@ window.__ModuleLoader__.load({
     // ── 常驻迷你播放器（模块级，切页不销毁） ───────────────────────
     const biliLiveSession = { video: null, player: null, roomId: null, title: '' }
     let biliPageMounted = false
+    let biliLayout = null
 
     function biliMiniEnsure() {
       let box = document.getElementById('bili-live-mini')
@@ -98,7 +99,16 @@ window.__ModuleLoader__.load({
         box.remove()
       })
       box.querySelector('#bili-mini-expand').addEventListener('click', () => {
-        if (!biliPageMounted) { alert('请先切回「bilibili 直播」页面，再点「回页面」'); return }
+        if (!biliPageMounted) {
+          try {
+            if (biliLayout && typeof biliLayout.selectPanel === 'function') biliLayout.selectPanel('bilibili-multiview')
+          } catch {}
+          setTimeout(() => {
+            if (biliPageMounted) window.dispatchEvent(new CustomEvent('bili-live-expand-mini'))
+            else alert('请先切回「bilibili 直播」页面，再点「回页面」')
+          }, 500)
+          return
+        }
         window.dispatchEvent(new CustomEvent('bili-live-expand-mini'))
       })
       return box
@@ -3153,6 +3163,9 @@ window.__ModuleLoader__.load({
     }
 
     function apply(ctx) {
+      try {
+        biliLayout = ctx.layout || (typeof ctx.get === 'function' ? ctx.get('layout') : null) || null
+      } catch {}
       ctx.effect(
         () =>
           ctx.locale.register(NS, {

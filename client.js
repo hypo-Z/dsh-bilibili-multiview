@@ -78,6 +78,7 @@ window.__ModuleLoader__.load({
       biliLiveSession.roomId = roomId
       biliLiveSession.title = title || ''
       box.querySelector('#bili-mini-title').textContent = title || ('房间 ' + roomId)
+      try { video.play().catch(() => {}) } catch {}
       box.querySelector('#bili-mini-play').textContent = video.paused ? '播放' : '暂停'
     }
 
@@ -1204,6 +1205,7 @@ window.__ModuleLoader__.load({
           try { slot.parentElement.replaceChild(v, slot) } catch { return }
           videoRef.current = v
           v.style.width = '100%'; v.style.height = 'auto'; v.style.objectFit = 'contain'
+          try { v.play().catch(() => {}) } catch {}
           biliLiveSession.video = null
           biliLiveSession.player = null
           const box = document.getElementById('bili-live-mini')

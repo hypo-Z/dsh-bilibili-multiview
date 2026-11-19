@@ -914,6 +914,39 @@ function pushDanmuRecent(room, payload) {
 function hlsTokenId(value) {
   return createHash('sha1').update(value).digest('hex').slice(0, 16)
 }
+const danmuKeep = new Map()
+function ensureDanmuRoom(room) {
+  if (!room) return
+  const existing = danmuKeep.get(room)
+  if (existing) { existing.at = Date.now(); return }
+  const entry = { at: Date.now() }
+  danmuKeep.set(room, entry)
+  const noop = () => {}
+  const mockResponse = {
+    writableEnded: false,
+    headersSent: true,
+    writeHead: noop,
+    write: () => true,
+    on: () => mockResponse,
+    once: () => mockResponse,
+    end: () => { mockResponse.writableEnded = true },
+  }
+  const mockRequest = { on: () => mockRequest, headers: {}, method: 'GET', url: '/' }
+  Promise.resolve(streamDanmaku(mockRequest, mockResponse, room)).catch(() => {
+    danmuKeep.delete(room)
+  })
+  entry.session = mockResponse
+}
+setInterval(() => {
+  const now = Date.now()
+  for (const [room, entry] of danmuKeep) {
+    if (now - entry.at > 120000) {
+      try { entry.session?.end?.() } catch {}
+      danmuKeep.delete(room)
+    }
+  }
+}, 30000).unref?.()
+
 function hlsTokenUrl(abs) {
   const id = hlsTokenId(abs)
   hlsTokens.set(id, abs)
@@ -1107,6 +1140,7 @@ async function route(request, response) {
 
   if (pathname === `${ROUTE_PREFIX}/api/danmu/recent` && method === 'GET') {
     const room = normalizeRoomId(url.searchParams.get('room') || '')
+    if (room) ensureDanmuRoom(room)
     const since = Number(url.searchParams.get('since') || '0') || 0
     const list = room ? danmuBuffer.get(room) || [] : []
     const messages = list.filter((item) => item.seq > since)

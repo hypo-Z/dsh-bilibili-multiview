@@ -929,7 +929,7 @@ async function route(request, response) {
       if (!t || t.startsWith('#')) return line
       try { return `${ROUTE_PREFIX}/api/hls-seg?u=` + encodeURIComponent(new URL(t, target).toString()) } catch { return line }
     }).join('\n')
-    response.writeHead(200, { 'content-type': 'application/vnd.apple.mpegurl; charset=utf-8', 'cache-control': 'no-store' })
+    response.writeHead(200, { 'content-type': 'application/vnd.apple.mpegurl; charset=utf-8', 'cache-control': 'no-store', 'access-control-allow-origin': '*' })
     response.end(out)
     return
   }
@@ -937,9 +937,21 @@ async function route(request, response) {
   if (pathname === `${ROUTE_PREFIX}/api/hls-seg` && method === 'GET') {
     const target = url.searchParams.get('u')
     if (!target) throw new BiliError('缺少分片地址')
-    const r = await fetch(target, { headers: { 'User-Agent': USER_AGENT, referer: 'https://live.bilibili.com/' } })
+    const headers = { 'User-Agent': USER_AGENT, referer: 'https://live.bilibili.com/' }
+    if (request.headers.range) headers.range = request.headers.range
+    const r = await fetch(target, { headers })
     const buf = Buffer.from(await r.arrayBuffer())
-    response.writeHead(r.status, { 'content-type': r.headers.get('content-type') || 'video/mp4', 'cache-control': 'no-store' })
+    const out = {
+      'content-type': r.headers.get('content-type') || 'video/mp4',
+      'cache-control': 'no-store',
+      'access-control-allow-origin': '*',
+      'accept-ranges': 'bytes',
+    }
+    for (const key of ['content-range', 'content-length']) {
+      const value = r.headers.get(key)
+      if (value) out[key] = value
+    }
+    response.writeHead(r.status, out)
     response.end(buf)
     return
   }

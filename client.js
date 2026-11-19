@@ -973,7 +973,14 @@ window.__ModuleLoader__.load({
 
       const [attempt, setAttempt] = useState(0)
       useEffect(() => {
-        const onClosed = () => setAttempt((value) => value + 1)
+        const onClosed = () => {
+          miniActive = false
+          if (pageMounted && videoRef.current) {
+            try { videoRef.current.muted = false; videoRef.current.volume = 1 } catch {}
+            try { videoRef.current.play().catch(() => {}) } catch {}
+          }
+          setAttempt((value) => value + 1)
+        }
         window.addEventListener('bili-live-mini-closed', onClosed)
         return () => window.removeEventListener('bili-live-mini-closed', onClosed)
       }, [])

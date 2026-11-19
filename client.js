@@ -1140,6 +1140,17 @@ window.__ModuleLoader__.load({
         }
       }, [])
 
+
+      // 兜底：视频实际在播放但 UI 仍停在加载态时，自动同步
+      useEffect(() => {
+        const timer = setInterval(() => {
+          const v = videoRef.current
+          if (v && !v.paused && v.readyState >= 2) {
+            setPhase((value) => (value === 'playing' ? value : 'playing'))
+          }
+        }, 1000)
+        return () => clearInterval(timer)
+      }, [])
       const [attempt, setAttempt] = useState(0)
       useEffect(() => {
         const onClosed = () => {

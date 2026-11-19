@@ -920,6 +920,11 @@ async function route(request, response) {
     const r = await fetch(target, { headers: { 'User-Agent': USER_AGENT, referer: 'https://live.bilibili.com/' } })
     const text = await r.text()
     const out = text.split('\n').map((line) => {
+      if (line.includes('URI="')) {
+        return line.replace(/URI="([^"]+)"/g, (m, u) => {
+          try { return 'URI="' + `${ROUTE_PREFIX}/api/hls-seg?u=` + encodeURIComponent(new URL(u, target).toString()) + '"' } catch { return m }
+        })
+      }
       const t = line.trim()
       if (!t || t.startsWith('#')) return line
       try { return `${ROUTE_PREFIX}/api/hls-seg?u=` + encodeURIComponent(new URL(t, target).toString()) } catch { return line }

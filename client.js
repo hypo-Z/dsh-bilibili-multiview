@@ -1064,6 +1064,18 @@ window.__ModuleLoader__.load({
         return () => document.removeEventListener('fullscreenchange', onChange)
       }, [])
 
+      const togglePip = () => {
+        const video = videoRef.current
+        if (!video || typeof video.requestPictureInPicture !== 'function') {
+          alert('当前环境不支持画中画')
+          return
+        }
+        try {
+          if (document.pictureInPictureElement) document.exitPictureInPicture()
+          else video.requestPictureInPicture()
+        } catch {}
+      }
+
       const toggleFullscreen = () => {
         if (document.fullscreenElement) {
           document.exitFullscreen?.().catch(() => {})
@@ -1203,6 +1215,17 @@ window.__ModuleLoader__.load({
                 'aria-haspopup': 'menu',
               },
               h(Glyph, { name: 'move', size: 15 }),
+            ),
+            h(
+              'button',
+              {
+                className: 'bl-icon-btn',
+                type: 'button',
+                onClick: togglePip,
+                title: '小窗播放',
+                'aria-label': '小窗播放',
+              },
+              h('span', { style: { fontSize: 13, lineHeight: 1 } }, '⧉'),
             ),
             h(
               'button',

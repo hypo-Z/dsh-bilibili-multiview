@@ -29,8 +29,42 @@ window.__ModuleLoader__.load({
       box = document.createElement('div')
       box.id = 'bili-live-mini'
       box.style.cssText = 'position:fixed;right:16px;top:80px;width:360px;z-index:2147483200;background:#111;border:1px solid rgba(255,255,255,.18);border-radius:10px;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,.5);color:#eee;font:12px/1.4 -apple-system,BlinkMacSystemFont,sans-serif'
-      box.innerHTML = '<div id="bili-mini-bar" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:#1b1b1f;cursor:move"><b id="bili-mini-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">直播</b><button id="bili-mini-play" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">暂停</button><button id="bili-mini-close" style="border:0;background:transparent;color:#fff;cursor:pointer">✕</button></div><div id="bili-mini-stage" style="width:100%;aspect-ratio:16/9;background:#000"></div><div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#17171b"><input id="bili-mini-vol" type="range" min="0" max="100" value="100" style="flex:1"><button id="bili-mini-expand" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">回页面</button></div>'
+      box.innerHTML = '<div id="bili-mini-bar" class="bili-mini-chrome" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:#1b1b1f;cursor:move;transition:opacity .25s"><b id="bili-mini-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">直播</b><button id="bili-mini-play" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">暂停</button><button id="bili-mini-close" style="border:0;background:transparent;color:#fff;cursor:pointer">✕</button></div><div id="bili-mini-stage" style="width:100%;aspect-ratio:16/9;background:#000"></div><div id="bili-mini-foot" class="bili-mini-chrome" style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#17171b;transition:opacity .25s"><input id="bili-mini-vol" type="range" min="0" max="100" value="100" style="flex:1"><button id="bili-mini-size" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">尺寸 1x</button><button id="bili-mini-expand" style="border:0;background:#2a2a30;color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">回页面</button></div>'
       document.body.appendChild(box)
+      const foot = box.querySelector('#bili-mini-foot')
+      const chrome = [box.querySelector('#bili-mini-bar'), foot]
+      let hideTimer = null
+      const showChrome = () => {
+        chrome.forEach((el) => { if (el) { el.style.opacity = '1'; el.style.pointerEvents = 'auto' } })
+      }
+      const hideChrome = () => {
+        chrome.forEach((el) => { if (el) { el.style.opacity = '0'; el.style.pointerEvents = 'none' } })
+      }
+      const scheduleHide = () => {
+        showChrome()
+        if (hideTimer) clearTimeout(hideTimer)
+        hideTimer = setTimeout(hideChrome, 3000)
+      }
+      box.addEventListener('pointerenter', scheduleHide)
+      box.addEventListener('pointermove', scheduleHide)
+      scheduleHide()
+
+      const SIZES = [0.85, 1, 1.3, 1.6]
+      let sizeIndex = Math.max(0, SIZES.indexOf(Number(localStorage.getItem('bili-mini-size') || '1')))
+      if (sizeIndex < 0) sizeIndex = 1
+      const applySize = () => {
+        const scale = SIZES[sizeIndex]
+        box.style.width = Math.round(360 * scale) + 'px'
+        box.querySelector('#bili-mini-size').textContent = '尺寸 ' + scale + 'x'
+        try { localStorage.setItem('bili-mini-size', String(scale)) } catch {}
+      }
+      applySize()
+      box.querySelector('#bili-mini-size').addEventListener('click', () => {
+        sizeIndex = (sizeIndex + 1) % SIZES.length
+        applySize()
+        scheduleHide()
+      })
+
       const bar = box.querySelector('#bili-mini-bar')
       let sx = 0, sy = 0, ox = 0, oy = 0, dragging = false
       bar.addEventListener('pointerdown', (e) => {

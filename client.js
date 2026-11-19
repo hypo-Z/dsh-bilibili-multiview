@@ -419,9 +419,8 @@ window.__ModuleLoader__.load({
       })
       box.querySelector('#bili-mini-back').addEventListener('click', () => {
         miniStop()
-        if (!pageMounted) {
-          try { if (miniLayout && typeof miniLayout.selectPanel === 'function') miniLayout.selectPanel('bilibili-multiview') } catch {}
-        }
+        // 无论当前是否在直播页，都切回面板；页面若已挂载则立即恢复播放
+        try { if (miniLayout && typeof miniLayout.selectPanel === 'function') miniLayout.selectPanel('bilibili-multiview') } catch {}
       })
       return box
     }

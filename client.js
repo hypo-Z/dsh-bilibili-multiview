@@ -1060,6 +1060,7 @@ window.__ModuleLoader__.load({
             if (inMini) {
               // 迷你窗口持有视频：保留 HLS 播放器，切页不中断
               biliLiveSession.player = hls
+              try { video.play().catch(() => {}) } catch {}
               return
             }
             if (hls) { try { hls.destroy() } catch {} }
@@ -1139,6 +1140,7 @@ window.__ModuleLoader__.load({
             // 迷你窗口持有视频：保留播放器，切页不中断
             biliLiveSession.player = player
             playerRef.current = null
+            try { video.play().catch(() => {}) } catch {}
             return
           }
           if (player) {

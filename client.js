@@ -1144,11 +1144,12 @@ window.__ModuleLoader__.load({
       useEffect(() => {
         const onClosed = () => {
           miniActive = false
-          if (pageMounted && videoRef.current) {
-            try { videoRef.current.muted = false; videoRef.current.volume = 1 } catch {}
-            try { videoRef.current.play().catch(() => {}) } catch {}
+          if (pageMounted) {
+            // 页面还在（可能只是隐藏）：按页面自己的流程重新解锁声音并重建播放
+            setAudioUnlocked(true)
+            setNeedsTap(false)
+            setAttempt((value) => value + 1)
           }
-          setAttempt((value) => value + 1)
         }
         window.addEventListener('bili-live-mini-closed', onClosed)
         return () => window.removeEventListener('bili-live-mini-closed', onClosed)

@@ -334,6 +334,19 @@ function pickFlvStream(playurl) {
   return null
 }
 
+function pickHlsStream(playurl) {
+  const streams = Array.isArray(playurl?.stream) ? playurl.stream : []
+  for (const stream of streams) {
+    if (stream?.protocol_name !== 'http_hls') continue
+    for (const format of Array.isArray(stream.format) ? stream.format : []) {
+      for (const codec of Array.isArray(format.codec) ? format.codec : []) {
+        if (codec?.codec_name === 'avc' && !codec?.drm) return codec
+      }
+    }
+  }
+  return null
+}
+
 function secureUrl(url) {
   return String(url).replace(/^http:\/\//i, 'https://')
 }
@@ -356,11 +369,25 @@ async function fetchPlayInfo(roomIdInput, qnInput) {
   const playurl = data.playurl_info.playurl
   const codec = pickFlvStream(playurl)
   if (!codec) {
+    const hlsCodec = pickHlsStream(playurl)
+    const hlsUrls = []
+    for (const info of Array.isArray(hlsCodec?.url_info) ? hlsCodec.url_info : []) {
+      if (!info?.host || !hlsCodec.base_url) continue
+      const url = secureUrl(`${info.host}${hlsCodec.base_url}${info.extra || ''}`)
+      if (!hlsUrls.includes(url)) hlsUrls.push(url)
+    }
+    if (!hlsUrls.length) {
+      return { live: true, roomId: String(data.room_id ?? realId), unsupported: true, error: '该直播间没有可用的直播流' }
+    }
+    const descs = Array.isArray(playurl.g_qn_desc) ? playurl.g_qn_desc : []
     return {
       live: true,
       roomId: String(data.room_id ?? realId),
-      unsupported: true,
-      error: '该直播间没有可用的 FLV 流',
+      qn: Number(hlsCodec.current_qn) || qn,
+      qualities: [{ qn: Number(hlsCodec.current_qn) || qn, label: qualityLabel(descs, Number(hlsCodec.current_qn) || qn) }],
+      urls: hlsUrls,
+      format: 'hls',
+      codec: 'avc',
     }
   }
   const descriptions = Array.isArray(playurl.g_qn_desc) ? playurl.g_qn_desc : []
@@ -877,6 +904,38 @@ async function route(request, response) {
 
   if (pathname === `${ROUTE_PREFIX}/vendor/mpegts.js` && method === 'GET') {
     await serveVendor(response)
+    return
+  }
+
+  if (pathname === `${ROUTE_PREFIX}/vendor/hls.js` && method === 'GET') {
+    const buf = await readFile(new URL('./vendor/hls.min.js', import.meta.url))
+    response.writeHead(200, { 'content-type': 'application/javascript; charset=utf-8', 'cache-control': 'max-age=86400' })
+    response.end(buf)
+    return
+  }
+
+  if (pathname === `${ROUTE_PREFIX}/api/hls` && method === 'GET') {
+    const target = url.searchParams.get('u')
+    if (!target) throw new BiliError('缺少 HLS 地址')
+    const r = await fetch(target, { headers: { 'User-Agent': USER_AGENT, referer: 'https://live.bilibili.com/' } })
+    const text = await r.text()
+    const out = text.split('\n').map((line) => {
+      const t = line.trim()
+      if (!t || t.startsWith('#')) return line
+      try { return `${ROUTE_PREFIX}/api/hls-seg?u=` + encodeURIComponent(new URL(t, target).toString()) } catch { return line }
+    }).join('\n')
+    response.writeHead(200, { 'content-type': 'application/vnd.apple.mpegurl; charset=utf-8', 'cache-control': 'no-store' })
+    response.end(out)
+    return
+  }
+
+  if (pathname === `${ROUTE_PREFIX}/api/hls-seg` && method === 'GET') {
+    const target = url.searchParams.get('u')
+    if (!target) throw new BiliError('缺少分片地址')
+    const r = await fetch(target, { headers: { 'User-Agent': USER_AGENT, referer: 'https://live.bilibili.com/' } })
+    const buf = Buffer.from(await r.arrayBuffer())
+    response.writeHead(r.status, { 'content-type': r.headers.get('content-type') || 'video/mp4', 'cache-control': 'no-store' })
+    response.end(buf)
     return
   }
 

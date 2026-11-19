@@ -375,7 +375,12 @@ window.__ModuleLoader__.load({
         panel.id = 'bili-mini-dm-set'
         panel.style.cssText = 'position:absolute;right:8px;top:44px;z-index:5;width:220px;background:rgba(20,20,24,.96);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:10px;color:#ddd;font:12px/1.7 -apple-system,sans-serif'
         panel.innerHTML = '<div>速度 <b id="dmv-speed"></b></div><input id="dmi-speed" type="range" min="0.5" max="2" step="0.1" style="width:100%"><div>显示区域 <b id="dmv-area"></b></div><input id="dmi-area" type="range" min="20" max="100" step="5" style="width:100%"><div>不透明度 <b id="dmv-op"></b></div><input id="dmi-op" type="range" min="0.2" max="1" step="0.1" style="width:100%"><div>字体大小 <b id="dmv-size"></b></div><input id="dmi-size" type="range" min="12" max="28" step="1" style="width:100%">'
-        box.appendChild(panel)
+        const r = box.getBoundingClientRect()
+        panel.style.position = 'fixed'
+        panel.style.right = 'auto'
+        panel.style.top = (r.top + 44) + 'px'
+        panel.style.left = Math.max(8, r.right - 230) + 'px'
+        document.body.appendChild(panel)
         const labels = () => {
           panel.querySelector('#dmv-speed').textContent = miniDmCfg.speed.toFixed(1) + 'x'
           panel.querySelector('#dmv-area').textContent = miniDmCfg.area + '%'
@@ -541,6 +546,7 @@ window.__ModuleLoader__.load({
     function miniStop() {
       miniStopPlayer()
       miniStopDanmu()
+      document.getElementById('bili-mini-dm-set')?.remove()
       miniActive = false
       document.getElementById('bili-live-mini')?.remove()
       window.dispatchEvent(new CustomEvent('bili-live-mini-closed'))

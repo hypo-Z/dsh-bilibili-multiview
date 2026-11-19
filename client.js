@@ -357,7 +357,7 @@ window.__ModuleLoader__.load({
       box = document.createElement('div')
       box.id = 'bili-live-mini'
       box.style.cssText = 'position:fixed;right:16px;top:80px;width:' + Math.round(360 * miniSize) + 'px;z-index:2147483200;background:#000;border:1px solid rgba(255,255,255,.18);border-radius:10px;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,.5);color:#eee;font:12px/1.4 -apple-system,BlinkMacSystemFont,sans-serif'
-      box.innerHTML = '<div id="bili-mini-bar" style="position:absolute;left:0;right:0;top:0;z-index:3;display:flex;align-items:center;gap:6px;padding:6px 8px;background:linear-gradient(180deg,rgba(8,8,10,.88),rgba(8,8,10,0));cursor:move;transition:opacity .25s"><b id="bili-mini-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 2px #000">直播</b><button id="bili-mini-dm" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">弹幕 开</button><button id="bili-mini-dmset" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">设置</button><button id="bili-mini-size" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">尺寸 ' + miniSize + 'x</button><button id="bili-mini-back" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">回页面</button><button id="bili-mini-play" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">暂停</button><button id="bili-mini-close" style="border:0;background:transparent;color:#fff;cursor:pointer">✕</button></div><div id="bili-mini-stage" style="position:relative;width:100%;aspect-ratio:16/9;background:#000;overflow:hidden"><video id="bili-mini-video" controls playsinline style="width:100%;height:100%;object-fit:cover"></video><div id="bili-mini-danmu" style="position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:2"></div></div>'
+      box.innerHTML = '<div id="bili-mini-bar" style="position:absolute;left:0;right:0;top:0;z-index:3;display:flex;align-items:center;gap:6px;padding:6px 8px;background:linear-gradient(180deg,rgba(8,8,10,.88),rgba(8,8,10,0));cursor:move;transition:opacity .25s"><b id="bili-mini-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 2px #000">直播</b><button id="bili-mini-dm" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">弹幕 开</button><button id="bili-mini-dmset" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">设置</button><button id="bili-mini-size" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">尺寸 ' + miniSize + 'x</button><button id="bili-mini-back" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">回页面</button><button id="bili-mini-play" style="border:0;background:rgba(42,42,48,.72);color:#fff;border-radius:5px;padding:2px 8px;cursor:pointer">暂停</button><button id="bili-mini-close" style="border:0;background:transparent;color:#fff;cursor:pointer">✕</button></div><div id="bili-mini-stage" style="position:relative;width:100%;aspect-ratio:16/9;background:#000;overflow:hidden"><video id="bili-mini-video" controls playsinline style="width:100%;height:100%;object-fit:cover"></video><div id="bili-mini-danmu" style="position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:2"></div><div id="bili-mini-dbg" style="position:absolute;left:6px;bottom:6px;z-index:4;font:10px/1.2 monospace;color:#9f9;opacity:.8;pointer-events:none;text-shadow:0 1px 2px #000"></div></div>'
       document.body.appendChild(box)
       const bar = box.querySelector('#bili-mini-bar')
       const foot = box.querySelector('#bili-mini-foot')
@@ -437,6 +437,8 @@ window.__ModuleLoader__.load({
     let miniDanmuSource = null
     let miniDanmuAbort = null
     let miniDmPoll = null
+    let miniDbgReq = 0
+    let miniDbgMsg = 0
     let miniDanmuOn = localStorage.getItem('bili-mini-danmaku') !== '0'
     let miniDmWatch = null
     let miniDmCfg = (() => { try { const v = JSON.parse(localStorage.getItem('bili-mini-dm-cfg') || '{}'); return { speed: Number(v.speed) || 1, area: Number(v.area) || 70, opacity: v.opacity === undefined ? 1 : Number(v.opacity), size: Number(v.size) || 16 } } catch { return { speed: 1, area: 70, opacity: 1, size: 16 } } })()
@@ -503,9 +505,12 @@ window.__ModuleLoader__.load({
           const data = await response.json()
           if (!data || !data.ok) return
           since = Number(data.last) || since
+          miniDbgReq += 1
           for (const item of data.messages || []) {
-            if (item && typeof item.text === 'string') miniPushDanmu(item.text, item.kind)
+            if (item && typeof item.text === 'string') { miniDbgMsg += 1; miniPushDanmu(item.text, item.kind) }
           }
+          const dbg = document.getElementById('bili-mini-dbg')
+          if (dbg) dbg.textContent = 'poll ' + miniDbgReq + ' / msg ' + miniDbgMsg
         } catch {}
       }
       tick()

@@ -1300,6 +1300,7 @@ window.__ModuleLoader__.load({
               })
               hls.loadSource('/bilibili-multiview/api/hls-open?u=' + encodeURIComponent(play.urls[0]))
               hls.attachMedia(video)
+              playerRef.current = hls
               video.addEventListener('playing', () => { if (!disposed) setPhase('ready') }, { once: true })
               video.addEventListener('canplay', () => { if (!disposed) setPhase('ready') }, { once: true })
               video.addEventListener('timeupdate', () => { if (!disposed) setPhase('playing') }, { once: true })

@@ -1046,6 +1046,7 @@ window.__ModuleLoader__.load({
               })
               hls.loadSource('/bilibili-multiview/api/hls?u=' + encodeURIComponent(play.urls[0]))
               hls.attachMedia(video)
+              playerRef.current = hls
               video.addEventListener('playing', () => { if (!disposed) setPhase('ready') }, { once: true })
             })
             .catch(() => {
@@ -1055,7 +1056,14 @@ window.__ModuleLoader__.load({
             })
           return () => {
             disposed = true
+            const inMini = video && video.parentElement && video.parentElement.id === 'bili-mini-stage'
+            if (inMini) {
+              // 迷你窗口持有视频：保留 HLS 播放器，切页不中断
+              biliLiveSession.player = hls
+              return
+            }
             if (hls) { try { hls.destroy() } catch {} }
+            try { if (playerRef.current === hls) playerRef.current = null } catch {}
           }
         }
 

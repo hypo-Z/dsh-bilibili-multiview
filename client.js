@@ -135,6 +135,54 @@ window.__ModuleLoader__.load({
       }
     }
 
+    async function biliMiniPlay(roomId, urls, format, title) {
+      const box = biliMiniEnsure()
+      const stage = box.querySelector('#bili-mini-stage')
+      if (biliLiveSession.player) { try { biliLiveSession.player.destroy() } catch {} }
+      let video = stage.querySelector('video')
+      if (!video) {
+        video = document.createElement('video')
+        video.controls = true
+        video.autoplay = true
+        video.playsInline = true
+        stage.appendChild(video)
+      }
+      biliMiniStyleVideo(video)
+      const url = urls[0]
+      try {
+        if (format === 'hls') {
+          const Hls = await loadHls()
+          const hls = new Hls({ lowLatencyMode: true })
+          hls.loadSource('/bilibili-multiview/api/hls-open?u=' + encodeURIComponent(url))
+          hls.attachMedia(video)
+          biliLiveSession.player = hls
+        } else {
+          const mpegts = await loadMpegts()
+          const p = mpegts.createPlayer(
+            { type: 'flv', isLive: true, url: '/bilibili-multiview/api/stream?u=' + encodeURIComponent(url), hasAudio: true, hasVideo: true },
+            { enableWorker: false, enableStashBuffer: false, lazyLoad: false, liveBufferLatencyChasing: true },
+          )
+          p.attachMediaElement(video)
+          p.load()
+          biliLiveSession.player = p
+        }
+      } catch (error) {
+        console.error('[bili-mini] play failed', error)
+      }
+      biliLiveSession.video = video
+      biliLiveSession.roomId = roomId
+      box.querySelector('#bili-mini-title').textContent = title || ('房间 ' + roomId)
+      try { await video.play() } catch {}
+    }
+
+    function biliMiniStop() {
+      try { biliLiveSession.player?.destroy?.() } catch {}
+      try { document.querySelector('#bili-mini-stage video')?.remove() } catch {}
+      biliLiveSession.player = null
+      biliLiveSession.video = null
+      document.getElementById('bili-live-mini')?.remove()
+    }
+
     function biliMiniShow(video, roomId, title, player) {
       const box = biliMiniEnsure()
       const stage = box.querySelector('#bili-mini-stage')
@@ -1062,6 +1110,7 @@ window.__ModuleLoader__.load({
         if (!play || !sources.length) return undefined
         const video = videoRef.current
         if (!video) return undefined
+        if (pageMode !== 'page') return undefined
         let disposed = false
         let player = null
         if (window.__biliLivePip) {
@@ -1154,15 +1203,6 @@ window.__ModuleLoader__.load({
             })
           return () => {
             disposed = true
-            if (document.getElementById('bili-live-mini')) {
-              // 迷你窗口存在：视频移入迷你窗并保留 HLS 播放器，切页不中断
-              try { document.querySelector('#bili-mini-stage').appendChild(video) } catch {}
-              biliMiniStyleVideo(video)
-              biliLiveSession.video = video
-              biliLiveSession.player = hls
-              try { video.play().catch(() => {}) } catch {}
-              return
-            }
             if (hls) { try { hls.destroy() } catch {} }
             try { if (playerRef.current === hls) playerRef.current = null } catch {}
           }
@@ -1236,16 +1276,6 @@ window.__ModuleLoader__.load({
             video.removeEventListener('enterpictureinpicture', onEnterPip)
             video.removeEventListener('leavepictureinpicture', onLeavePip)
           } catch {}
-          if (document.getElementById('bili-live-mini')) {
-            // 迷你窗口存在：视频移入迷你窗并保留播放器，切页不中断
-            try { document.querySelector('#bili-mini-stage').appendChild(video) } catch {}
-            biliMiniStyleVideo(video)
-            biliLiveSession.video = video
-            biliLiveSession.player = player
-            playerRef.current = null
-            try { video.play().catch(() => {}) } catch {}
-            return
-          }
           if (player) {
             try {
               player.pause()
@@ -1276,7 +1306,7 @@ window.__ModuleLoader__.load({
             /* ignore */
           }
         }
-      }, [play, sources, candidate])
+      }, [play, sources, candidate, pageMode])
 
       useEffect(() => {
         const video = videoRef.current
@@ -1300,32 +1330,27 @@ window.__ModuleLoader__.load({
       }, [])
 
       const togglePip = () => {
-        const existing = document.getElementById('bili-live-mini')
-        if (existing) {
-          existing.querySelector('#bili-mini-expand').click()
+        if (document.getElementById('bili-live-mini')) {
+          biliMiniStop()
+          setPageMode('page')
           return
         }
-        const video = videoRef.current
-        if (!video) return
-        biliMiniShow(video, room.id, room.title || room.uname || '', playerRef.current)
+        if (!play || !Array.isArray(play.urls) || play.urls.length === 0) {
+          alert('请先播放直播再打开小窗')
+          return
+        }
+        setPageMode('mini')
+        biliMiniPlay(room.id, play.urls, play.format || 'flv', room.title || room.uname || '')
       }
 
       useEffect(() => {
-        const onExpand = () => {
-          const v = biliLiveSession.video
-          const slot = videoRef.current
-          if (!v || !slot || !slot.parentElement) return
-          try { slot.parentElement.replaceChild(v, slot) } catch { return }
-          videoRef.current = v
-          v.style.width = '100%'; v.style.height = 'auto'; v.style.objectFit = 'contain'
-          try { v.play().catch(() => {}) } catch {}
-          biliLiveSession.video = null
-          biliLiveSession.player = null
-          const box = document.getElementById('bili-live-mini')
-          if (box) box.remove()
+        const back = () => setPageMode('page')
+        window.addEventListener('bili-live-expand-mini', back)
+        window.addEventListener('bili-live-mini-closed', back)
+        return () => {
+          window.removeEventListener('bili-live-expand-mini', back)
+          window.removeEventListener('bili-live-mini-closed', back)
         }
-        window.addEventListener('bili-live-expand-mini', onExpand)
-        return () => window.removeEventListener('bili-live-expand-mini', onExpand)
       }, [])
 
       useEffect(() => {
@@ -1979,6 +2004,7 @@ window.__ModuleLoader__.load({
       const [danmakuOn, setDanmakuOn] = useState(stored.danmaku)
       const [soloId, setSoloId] = useState(null)
       const [audioUnlocked, setAudioUnlocked] = useState(false)
+      const [pageMode, setPageMode] = useState('page')
       // 第一次点页面任意位置（选房间/刷新等）就解锁声音，避免默认静音起播
       useEffect(() => {
         const unlock = () => setAudioUnlocked(true)

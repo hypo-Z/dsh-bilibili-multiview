@@ -425,6 +425,13 @@ window.__ModuleLoader__.load({
       const onViewportChange = () => { if (document.getElementById('bili-live-mini')) clampIntoView() }
       window.addEventListener('resize', onViewportChange)
       window.__biliMiniClamp = onViewportChange
+      try {
+        if (window.ResizeObserver) {
+          const observer = new ResizeObserver(() => { if (!drag) clampIntoView() })
+          observer.observe(box)
+          window.__biliMiniResizeObserver = observer
+        }
+      } catch {}
 
       box.querySelector('#bili-mini-close').addEventListener('click', () => { miniActive = false; resumePageVideoNow(); miniStop() })
       miniBindDanmuBridge()
@@ -482,6 +489,7 @@ window.__ModuleLoader__.load({
         try { localStorage.setItem('bili-mini-size', String(miniSize)) } catch {}
         box.style.width = Math.round(360 * miniSize) + 'px'
         box.querySelector('#bili-mini-size').textContent = '尺寸 ' + miniSize + 'x'
+        clampIntoView()
         scheduleHide()
       })
       const cutBtn = box.querySelector('#bili-mini-cut')
@@ -642,6 +650,7 @@ window.__ModuleLoader__.load({
       miniStopPlayer()
       miniStopDanmu()
       try { window.removeEventListener('resize', window.__biliMiniClamp); window.__biliMiniClamp = null } catch {}
+      try { window.__biliMiniResizeObserver?.disconnect(); window.__biliMiniResizeObserver = null } catch {}
       if (miniDmWatch) { clearInterval(miniDmWatch); miniDmWatch = null }
       document.getElementById('bili-mini-dm-set')?.remove()
       miniActive = false

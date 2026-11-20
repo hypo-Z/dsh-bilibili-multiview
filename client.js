@@ -396,10 +396,35 @@ window.__ModuleLoader__.load({
       box.addEventListener('pointermove', scheduleHide)
       scheduleHide()
 
+      const clampIntoView = () => {
+        const rect = box.getBoundingClientRect()
+        const maxLeft = Math.max(0, window.innerWidth - rect.width)
+        const maxTop = Math.max(0, window.innerHeight - rect.height)
+        const left = Math.min(Math.max(0, rect.left), maxLeft)
+        const top = Math.min(Math.max(0, rect.top), maxTop)
+        box.style.left = left + 'px'
+        box.style.top = top + 'px'
+        box.style.right = 'auto'
+        return { left, top, maxLeft, maxTop }
+      }
       let sx = 0, sy = 0, ox = 0, oy = 0, drag = false
       bar.addEventListener('pointerdown', (e) => { if (e.target.closest('button')) return; drag = true; sx = e.clientX; sy = e.clientY; const r = box.getBoundingClientRect(); ox = r.left; oy = r.top })
-      bar.addEventListener('pointermove', (e) => { if (!drag) return; box.style.left = (ox + e.clientX - sx) + 'px'; box.style.top = (oy + e.clientY - sy) + 'px'; box.style.right = 'auto' })
-      bar.addEventListener('pointerup', () => { drag = false })
+      bar.addEventListener('pointermove', (e) => {
+        if (!drag) return
+        const rect = box.getBoundingClientRect()
+        const maxLeft = Math.max(0, window.innerWidth - rect.width)
+        const maxTop = Math.max(0, window.innerHeight - rect.height)
+        const left = Math.min(Math.max(0, ox + e.clientX - sx), maxLeft)
+        const top = Math.min(Math.max(0, oy + e.clientY - sy), maxTop)
+        box.style.left = left + 'px'
+        box.style.top = top + 'px'
+        box.style.right = 'auto'
+      })
+      bar.addEventListener('pointerup', () => { drag = false; clampIntoView() })
+      setTimeout(clampIntoView, 0)
+      const onViewportChange = () => { if (document.getElementById('bili-live-mini')) clampIntoView() }
+      window.addEventListener('resize', onViewportChange)
+      window.__biliMiniClamp = onViewportChange
 
       box.querySelector('#bili-mini-close').addEventListener('click', () => { miniActive = false; resumePageVideoNow(); miniStop() })
       miniBindDanmuBridge()
@@ -616,6 +641,7 @@ window.__ModuleLoader__.load({
     function miniStop() {
       miniStopPlayer()
       miniStopDanmu()
+      try { window.removeEventListener('resize', window.__biliMiniClamp); window.__biliMiniClamp = null } catch {}
       if (miniDmWatch) { clearInterval(miniDmWatch); miniDmWatch = null }
       document.getElementById('bili-mini-dm-set')?.remove()
       miniActive = false
